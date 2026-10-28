@@ -1,0 +1,2349 @@
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{booktabs,tabularx,longtable,array,microtype}
+\usepackage[hidelinks]{hyperref}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\theoremstyle{definition}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{definition}[theorem]{Definition}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+\newcommand{\E}{\mathbb E}
+\newcommand{\Ent}{\mathsf H}
+\newcommand{\KL}{\operatorname{KL}}
+\newcommand{\kl}{\operatorname{kl}}
+\newcommand{\OR}{\operatorname{OR}}
+\newcommand{\Comp}{\operatorname{comp}}
+\newcommand{\cstar}{c_\star}
+\newcommand{\Glg}{\Gamma_{\mathrm{lg}}}
+\newcommand{\Gfr}{\Gamma_{\mathrm{fr}}}
+\newcommand{\er}{e_{\mathrm{quarter}}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\numberwithin{equation}{section}
+\setlength{\emergencystretch}{2em}
+\setlength{\parskip}{0.3em}
+\title{When Pooling Cannot Save a Test\\[0.4em]
+\large A guided proof for adaptive group testing with a known defective count}
+\author{}
+\date{October 25, 2026}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Suppose we know that exactly \(d\) of \(n\) items are defective. A test
+of a group of items tells us only whether the group contains at least
+one defective. We may choose each new group after seeing the earlier
+answers. Can this freedom guarantee fewer tests than examining items
+one at a time?
+
+This exposition proves that the answer is no when
+\(n\ge2^{31}\) and \(d/n\ge369056/1000000\): the optimal worst-case
+number is exactly \(n-1\). We begin with small examples, explain
+decision trees, and develop all the probability tools used in the proof.
+In particular, entropy, relative entropy, conditioning on an exact
+count, and an artificial comparison experiment are introduced from
+finite-sum definitions. A structural argument about legal pooled tests
+then connects a probability estimate near density one quarter to the
+stated theorem. Every mathematical ingredient needed for the conclusion
+is proved here. The large numerical constants are accompanied by exact
+certificates, with the longer arithmetic placed in an appendix.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{The problem: what can a pooled test tell us?}\label{sec:problem}
+
+\subsection{Items, defective sets, and answers}
+
+Imagine five labeled items, numbered \(1,2,3,4,5\). Each item is either
+defective or nondefective. The set of defective labels might be
+\[
+ D=\{2,5\}.
+\]
+The label \emph{defective} simply names one of two possible
+statuses. No statistical model is initially imposed on those statuses.
+There is a fixed unknown set, and we must identify it exactly.
+
+A \emph{pool} is a subset of the labels. Testing the pool
+\(S=\{1,2,3\}\) gives a positive answer for this \(D\), because label
+\(2\) lies in both sets. Testing \(\{1,3\}\) gives a negative answer,
+because neither label is defective. A negative answer certifies that
+every item in the tested pool is nondefective. A positive answer says
+only that at least one item in it is defective. It does not say which
+one, or how many.
+
+Write \([n]=\{1,\ldots,n\}\). Formally, the answer to pool
+\(S\subseteq[n]\) on defective set \(D\subseteq[n]\) is
+\[
+ \OR_D(S)=
+ \begin{cases}
+ 0,&S\cap D=\varnothing,\\
+ 1,&S\cap D\ne\varnothing.
+ \end{cases}
+\]
+This is called a pooled-\(\mathrm{OR}\) test: the answer is the logical
+OR of the individual defective indicators in the pool. We call \(0\)
+negative and \(1\) positive.
+
+Throughout this document the tests are noiseless, so an answer is
+always correct in an actual execution of the testing algorithm.
+The algorithm is deterministic: a given history of answers determines
+its next query. It is fully adaptive: that query may depend on the
+entire history, and may be any subset of the labels.
+
+\subsection{An adaptive strategy must handle all its branches}
+
+\begin{example}\label{ex:four}
+There is exactly one defective among four items. First test
+\(\{1,2\}\).
+If the answer is positive, test \(\{1\}\): the defective is \(1\)
+on a positive answer and \(2\) on a negative one.
+If the first answer is negative, test \(\{3\}\): the defective is
+\(3\) on a positive answer and \(4\) on a negative one.
+Thus two tests suffice on every possible input.
+\end{example}
+
+The second test depends on the first answer. If the actual defective
+is \(3\), only the negative-then-positive branch is executed.
+Nevertheless, a correct algorithm must specify successful behavior
+on the other three inputs as well. Finding a short explanation for
+one particular defective set is easier than designing a strategy
+that identifies every possible defective set within a uniform test
+limit. Our lower bound concerns the latter requirement.
+
+\subsection{What is known in advance?}
+
+The labels and the exact integer \(d\) are known. The unknown input is
+one of the \(d\)-element subsets of \([n]\). We write
+\(\binom{[n]}d\) for this family of sets, and \(\binom nd\) for its
+number of members. The promise is always \(0<d<n\).
+An algorithm may use the exact count at any stage. Once it has
+identified all \(d\) defectives, for instance, it knows every other
+label is nondefective without testing them.
+
+Knowing the count is different from knowing only an approximate
+defective fraction. If four tested items have revealed one defective
+and the total is known to be two among five, then the fifth item is
+defective. Without the exact total, that conclusion would be unjustified.
+
+\begin{definition}
+The \emph{worst-case number of tests} of an algorithm is the largest
+number it uses on any \(D\in\binom{[n]}d\).
+The number \(M(d,n)\) is the minimum of this worst-case number over
+all correct deterministic adaptive pooled-\(\mathrm{OR}\) algorithms.
+\end{definition}
+
+The order matters: first take the worst input for a fixed algorithm,
+then choose the best algorithm. Different algorithms may have
+different worst inputs.
+
+\begin{proposition}\label{prop:individual}
+For \(0<d<n\), \(M(d,n)\le n-1\).
+\end{proposition}
+\begin{proof}
+Test labels \(1,\ldots,n-1\) individually. If they contain \(r\)
+defectives, the last item must have defective indicator \(d-r\).
+For a valid input this indicator is either zero or one, so its
+status is determined. This is a correct algorithm using at most
+\(n-1\) tests.
+\end{proof}
+
+Sometimes this strategy stops earlier, but its bound on all inputs
+is \(n-1\). A pooled strategy would improve on it in the worst case
+only if it guaranteed at most \(n-2\) tests for \emph{every} valid input.
+
+\subsection{The theorem we will prove}
+
+\begin{theorem}[Individual testing in a dense regime]\label{thm:main}
+Let \(\cstar=369056/1000000\). For every pair of integers \(n,d\)
+satisfying
+\[
+ n\ge2^{31},\qquad 0<d<n,\qquad \frac dn\ge\cstar,
+\]
+one has
+\[
+ \boxed{M(d,n)=n-1.}
+\]
+\end{theorem}
+
+In ordinary language: for every population in the stated size range,
+if at least the fraction \(369056/1000000\) is defective, no legal
+adaptive pooling strategy can guarantee a saving over individual
+testing. Some inputs might be identified very quickly; the theorem
+says that every correct strategy has at least one input requiring
+\(n-1\) or more tests.
+
+Proposition~\ref{prop:individual} already gives the upper bound.
+The work lies in the opposite direction, \(M(d,n)\ge n-1\).
+Thus this is a lower-bound proof for the number of tests. It must
+account for every possible strategy, including strategies whose pools
+have complicated sizes and overlaps.
+
+The number \(2^{31}=2147483648\) is an explicit sufficient cutoff in
+the proof. We do not claim it is necessary. The theorem has no further
+exceptions within its range, but makes no corresponding general
+assertion for smaller populations.
+
+\section{Decision trees and the first counting bound}\label{sec:trees}
+
+\subsection{Putting a strategy on paper}
+
+A deterministic adaptive algorithm can be drawn as a rooted binary
+tree. An internal node \(v\) contains a pool \(S_v\). Its two outgoing
+edges have labels \(0\) and \(1\). A test answer tells us which edge
+to take. A leaf \(\ell\) is a stopping point with an output defective
+set. Correctness means that every valid input reaches a leaf whose
+output is that input.
+
+A \emph{history} or \emph{prefix transcript} \(\tau\) is the finite
+string of answers seen so far. In a fixed tree it determines a node,
+as long as execution has not already stopped. A \emph{terminal
+transcript} \(y\) is the full answer string leading to a leaf.
+We distinguish the string \(y\) from the leaf \(\ell\), although the
+tree gives a one-to-one correspondence between them.
+The depth of a leaf is its number of preceding tests.
+
+Here is Example~\ref{ex:four} as a table:
+\begin{center}
+\begin{tabular}{cll}
+\toprule
+Defective set&Queries along its path&Answers\\
+\midrule
+\(\{1\}\)&\(\{1,2\}\), then \(\{1\}\)&\(11\)\\
+\(\{2\}\)&\(\{1,2\}\), then \(\{1\}\)&\(10\)\\
+\(\{3\}\)&\(\{1,2\}\), then \(\{3\}\)&\(01\)\\
+\(\{4\}\)&\(\{1,2\}\), then \(\{3\}\)&\(00\)\\
+\bottomrule
+\end{tabular}
+\end{center}
+The same first query appears in all rows. The second query is a
+function of the first answer, not a function of an unknown input
+that the algorithm has somehow been told.
+
+We only need finite trees. A strategy with a finite worst-case test
+bound can be restricted to its valid-input paths, giving a finite
+tree. An algorithm without a finite worst-case bound cannot improve
+the finite strategy of Proposition~\ref{prop:individual}.
+
+\subsection{Counting leaves}
+
+\begin{proposition}\label{prop:counting}
+Every correct tree for \(\binom{[n]}d\) has worst-case depth at least
+\(\left\lceil\log_2\binom nd\right\rceil\).
+\end{proposition}
+\begin{proof}
+Two different valid inputs cannot terminate at the same leaf, because
+the leaf has only one output. Thus at least \(\binom nd\) valid
+leaves are needed.
+A binary tree of depth at most \(s\) has at most \(2^s\) leaves.
+This follows by induction: at depth zero there is at most one;
+each of two child subtrees has at most \(2^{s-1}\) leaves.
+Therefore \(2^s\ge\binom nd\). Taking logarithms and using that
+\(s\) is an integer gives the assertion.
+\end{proof}
+
+This bound uses only the two possible answers per test. It would hold
+even if arbitrary yes/no questions about the input were allowed.
+Such questions can be more flexible than pooled tests.
+
+For instance, when \(d=n-1\), there are only \(n\) possibilities:
+the locations of the one nondefective item. Counting gives only
+\(\lceil\log_2 n\rceil\). Yet every pool of size at least two is
+always positive, so it reveals nothing. We will prove in
+Section~\ref{sec:structural} that the actual optimum is \(n-1\).
+This shows why counting alone cannot establish the desired theorem.
+
+\subsection{A pooled test cannot make an arbitrary split}
+
+Suppose \(n=4,d=2\), giving six candidate inputs.
+A negative answer to \(S\) leaves exactly the candidates contained
+in \([4]\setminus S\). If \(|S|=k\), their number is
+\(\binom{4-k}{2}\), interpreted as zero if \(4-k<2\).
+Depending on \(k\), this number is \(6,3,1,\) or \(0\), never \(2\).
+
+An unrestricted binary question could ask whether the input belongs
+to a chosen two-element collection of candidates. A pooled test
+cannot produce that negative branch on this complete family.
+Later the candidate family is more complicated, but an answer must
+still be determined by whether the pool intersects the defective set.
+Replacing a legal query by a conveniently balanced arbitrary binary
+partition would change the problem.
+
+\section{How the proof fits together}\label{sec:roadmap}
+
+The proof has two main parts. One is probabilistic and measures what
+a legal tree can accomplish near defective density \(1/4\).
+The other is structural and relates optimal test counts on different
+population sizes. Neither part alone proves the theorem.
+
+For the probabilistic part we choose a uniformly random valid
+defective set solely as a tool for analyzing a fixed deterministic
+tree. Let
+\[
+ H=\log_2\binom nd,\qquad L=\text{its expected number of tests}.
+\]
+We will explain entropy and prove \(L\ge H\). The difference
+\(\Gamma=L-H\) measures how much expected test count exceeds this
+basic information requirement.
+
+The important estimate is stronger:
+\begin{equation}\label{eq:roadmapWT}
+ 6615(L-H)\ge n-H-67229K,\qquad K=nh(d/n)-H,
+\end{equation}
+for \(249/1000\le d/n\le251/1000\).
+Here \(h\) is the entropy of one binary outcome, defined below.
+The quantity \(K\) is a cost for comparing exact-count inputs with
+independent inputs. We will prove \(0\le K\le\log_2(n+1)\).
+Thus it is a logarithmic correction, rather than a new linear term.
+
+Why introduce independent inputs? Independence makes probabilities
+of all-good pools easy to calculate. But the real inputs have an exact
+count and are not independent. Relative entropy will keep track of
+the difference over an entire tree.
+We also introduce a second comparison experiment that answers large
+pools by fair coin flips. This artificial experiment is not a testing
+algorithm for the original problem. It leaves certain input coordinates
+independent after a transcript, allowing us to calculate how much
+uncertainty remains.
+
+The structural part proves a recurrence for \(M\). In a hypothetical
+instance where some strategy saves a test, the recurrence forces
+smaller instances with increasingly strong savings. Following this
+implication eventually reaches a density just below \(1/4\), where
+\eqref{eq:roadmapWT} applies. The forced saving is then too large to
+be compatible with that inequality.
+
+This explains why an estimate at density \(1/4\) matters for a theorem
+whose initial density is at least \(\cstar\). The recurrence connects
+the two regimes; the initial problem is not assumed to have density
+\(1/4\).
+
+\begin{center}
+\begin{tabular}{c}
+\fbox{\parbox{0.82\linewidth}{\centering
+Finite probability tools + restrictions of pooled-OR queries}}\\[0.4em]
+\(\Downarrow\)\\[0.4em]
+\fbox{\parbox{0.82\linewidth}{\centering
+A whole-tree inequality near density \(1/4\)}}\\[0.4em]
+\(\Downarrow\quad\) together with a legal-tree recurrence\\[0.4em]
+\fbox{\parbox{0.82\linewidth}{\centering
+A supposed saving forces an impossible smaller instance}}\\[0.4em]
+\(\Downarrow\)\\[0.4em]
+\fbox{\parbox{0.82\linewidth}{\centering
+The exact lower bound \(M(d,n)\ge n-1\)}}
+\end{tabular}
+\end{center}
+
+All probability spaces below are finite. Randomness is introduced to
+prove a lower bound, not to allow randomized testing strategies.
+Every expectation relevant to the real algorithm averages over valid
+exact-\(d\) inputs.
+
+The notation is introduced gradually. A fixed input is \(D\), a
+random input is \(X\), a query is \(S_v\), a node is \(v\), a prefix
+transcript is \(\tau\), a terminal transcript is \(y\), and a leaf
+is \(\ell\). The random terminal transcript is \(Y\).
+We write \(P_X\) for an input law, \(P_Y\) for a transcript law,
+and \(P_{X,Y}\) for their joint law. This subscript convention also
+applies to the comparison laws.
+A full notation guide appears in Appendix~\ref{app:notation};
+each symbol is explained in the text before it is used.
+
+\section{Entropy: uncertainty measured by a finite sum}\label{sec:entropytools}
+
+\subsection{Why logarithms appear}
+
+An outcome of probability \(1/8\) has the same probability as three
+specified successive fair binary choices. This motivates assigning
+it information content \(-\log_2(1/8)=3\). More generally, assign
+an outcome of probability \(u>0\) information content \(-\log_2u\).
+The identity
+\[
+ -\log_2(uv)=-\log_2u-\log_2v
+\]
+lets us add information along conditional choices. This logarithmic
+identity, rather than a coding theorem, is what we will use.
+From now on \(\log\) means \(\log_2\), and \(\ln\) means natural
+logarithm. The unit is a bit.
+
+\begin{definition}
+For a law \(\mu\) on a finite set \(\Omega\), its \emph{entropy} is
+\[
+ \Ent(\mu)=-\sum_{z\in\Omega}\mu(z)\log\mu(z).
+\]
+We use \(0\log0=0\), as justified by the limit when the probability
+tends to zero.
+\end{definition}
+
+Entropy is the average information content under \(\mu\). It is
+nonnegative because \(-\log\mu(z)\ge0\) for every outcome of positive
+probability. For a uniform law on \(N\) outcomes,
+\[
+ \Ent(\mu)=-N\frac1N\log\frac1N=\log N.
+\]
+A certain outcome has entropy zero. Information content of an
+individual outcome and entropy of a law are distinct: the latter
+averages the former.
+
+\subsection{One binary outcome}
+
+The entropy of two answers, with probabilities \(u\) and \(1-u\), is
+\[
+ h(u)=-u\log u-(1-u)\log(1-u),\qquad 0\le u\le1.
+\]
+It equals one at \(u=1/2\), and zero at \(u=0\) or \(1\).
+For example, direct substitution gives
+\(h(1/4)=2-\tfrac34\log3\).
+Calculus quantifies the fact that biased answers have less entropy:
+\[
+ h'(u)=\log\frac{1-u}{u},\qquad
+ h''(u)=-\frac1{(\ln2)u(1-u)}<0\quad(0<u<1).
+\]
+The derivative is positive below \(1/2\) and negative above it.
+Together with the endpoint values, this proves
+\begin{equation}\label{eq:hbound}
+ 0\le h(u)\le1,\qquad h(u)=1\ \Longleftrightarrow\ u=1/2.
+\end{equation}
+
+\subsection{Conditional entropy and its chain rule}
+
+For finite random variables \(U,V\), their \emph{joint law} records
+the probabilities of pairs:
+\(\mu_{U,V}(u,v)=\Pr(U=u,V=v)\).
+Their \emph{marginal laws} record the probabilities of just one
+variable; for example,
+\(\mu_V(v)=\sum_u\mu_{U,V}(u,v)\).
+When \(\mu_V(v)>0\), the conditional law is
+\[
+ \mu_{U\mid V=v}(u)=\frac{\mu_{U,V}(u,v)}{\mu_V(v)}.
+\]
+Conditioning values of zero probability are omitted from conditional
+averages. With this notation, define
+\[
+ \Ent_\mu(U\mid V)
+ =\sum_{v:\mu_V(v)>0}\mu_V(v)\Ent(\mu_{U\mid V=v}).
+\]
+This is an average of entropies of conditional laws, weighted by how
+often each conditioning value occurs.
+
+\begin{lemma}[Entropy chain rule]\label{lem:entropychain}
+\(\Ent(\mu_{U,V})=\Ent(\mu_V)+\Ent_\mu(U\mid V)\).
+\end{lemma}
+\begin{proof}
+For every pair of positive joint probability,
+\(\mu_{U,V}(u,v)=\mu_V(v)\mu_{U\mid V=v}(u)\).
+Take negative logarithms and average:
+\begin{align*}
+ -\sum_{u,v}\mu_{U,V}(u,v)\log\mu_{U,V}(u,v)
+ &=-\sum_{u,v}\mu_{U,V}(u,v)\log\mu_V(v)\\
+ &\quad-\sum_{u,v}\mu_{U,V}(u,v)
+                       \log\mu_{U\mid V=v}(u).
+\end{align*}
+Summing the first term over \(u\) gives \(\Ent(\mu_V)\).
+Factoring \(\mu_V(v)\) out of the second for each \(v\) gives
+the defined conditional entropy.
+\end{proof}
+
+Thus learning a pair can be separated into learning \(V\), then
+learning what remains uncertain about \(U\) when \(V\) is known.
+Independence is not assumed.
+
+\section{Relative entropy: comparing two descriptions}\label{sec:KL}
+
+\subsection{Definition, meaning, and support}
+
+We will run the same tree under different probability models.
+The quantity that compares these laws must involve two distributions.
+
+\begin{definition}
+For finite laws \(\mu,\nu\) on the same set, their \emph{relative
+entropy}, or Kullback--Leibler divergence, is
+\[
+ \KL(\mu\Vert\nu)=\sum_{z:\mu(z)>0}\mu(z)\log\frac{\mu(z)}{\nu(z)}.
+\]
+If \(\nu(z)=0<\mu(z)\) for some \(z\), its value is \(+\infty\).
+If every outcome of positive \(\mu\)-mass has positive \(\nu\)-mass,
+we say that \(\mu\) is absolutely continuous with respect to \(\nu\).
+\end{definition}
+
+The logarithm measures how differently the two laws weight an outcome.
+The average is under the \emph{first} law \(\mu\).
+Individual logarithms can be negative, although the sum cannot be.
+Entropy measures uncertainty within one law. Relative entropy measures
+discrepancy between two laws, with an indicated order; it is not a
+symmetric distance.
+For example, \(\mu=(1,0)\), \(\nu=(1/2,1/2)\) give
+\(\KL(\mu\Vert\nu)=1\) but \(\KL(\nu\Vert\mu)=+\infty\).
+If \(\mu=\nu\), their divergence is zero.
+If \(\mu\) is a point mass at \(z\), then
+\begin{equation}\label{eq:pointKL}
+ \KL(\mu\Vert\nu)=\log\frac1{\nu(z)}.
+\end{equation}
+
+\begin{lemma}[Nonnegativity]\label{lem:nonnegative}
+\(\KL(\mu\Vert\nu)\ge0\).
+\end{lemma}
+\begin{proof}
+Calculus gives \(-\ln s\ge1-s\) for \(s>0\): the difference has
+derivative \(1-1/s\) and minimum zero at \(s=1\).
+For finite divergence, apply this with \(s=\nu(z)/\mu(z)\):
+\begin{align*}
+ (\ln2)\KL(\mu\Vert\nu)
+ &\ge\sum_{\mu(z)>0}(\mu(z)-\nu(z))\\
+ &=1-\sum_{\mu(z)>0}\nu(z)\ge0.
+\end{align*}
+Infinite divergence is also nonnegative.
+\end{proof}
+
+Comparison with the uniform law on \(N\) outcomes gives
+\(\KL(\mu\Vert\text{uniform})=\log N-\Ent(\mu)\).
+Thus entropy on those outcomes is at most \(\log N\).
+This statement is a consequence of the finite-sum proof, without
+appealing to a separate information-theoretic theorem.
+
+\subsection{The chain rule and the direction of comparison}
+
+\begin{lemma}[Relative-entropy chain rule]\label{lem:KLchain}
+For finite joint laws with \(\mu_{U,V}\) absolutely continuous with
+respect to \(\nu_{U,V}\),
+\begin{equation}\label{eq:KLchain}
+ \KL(\mu_{U,V}\Vert\nu_{U,V})
+ =\KL(\mu_V\Vert\nu_V)
+ +\sum_{v:\mu_V(v)>0}\mu_V(v)
+       \KL(\mu_{U\mid V=v}\Vert\nu_{U\mid V=v}).
+\end{equation}
+In particular, the marginal divergence is at most the joint divergence.
+\end{lemma}
+\begin{proof}
+On positive \(\mu\)-mass pairs, factor the likelihood ratio:
+\[
+ \frac{\mu_{U,V}(u,v)}{\nu_{U,V}(u,v)}
+ =\frac{\mu_V(v)}{\nu_V(v)}
+  \frac{\mu_{U\mid V=v}(u)}{\nu_{U\mid V=v}(u)}.
+\]
+Take logarithms and average under \(\mu\). The first term sums to
+the marginal divergence. In the second, average first under the
+\(\mu\)-conditional law for each \(v\), then with weight \(\mu_V(v)\).
+This is the displayed identity. Nonnegativity of each conditional
+divergence proves the last assertion.
+\end{proof}
+
+We will use \(U\) for the hidden input and \(V\) for its transcript.
+The identity separates discrepancy visible in the transcript from
+discrepancy remaining in the conditional input law. If the joint
+divergence is known and the conditional term has a lower bound,
+subtracting that lower bound gives an \emph{upper} bound on transcript
+divergence. We will write the identity again when its terms have
+concrete meanings.
+
+If \(V=f(U)\) is the same deterministic function under both laws,
+the joint masses are the input masses attached to \((u,f(u))\).
+Therefore
+\(\KL(\mu_{U,V}\Vert\nu_{U,V})=\KL(\mu_U\Vert\nu_U)\).
+The chain rule shows that applying the function cannot increase
+divergence. Truthful execution of a fixed tree is one such function.
+
+\section{Adding information along a decision tree}\label{sec:treeinformation}
+
+\subsection{Why reach probabilities are the weights}
+
+Fix a finite binary tree. A law \(\mu_Y\) on terminal transcripts
+induces a reach probability \(\mu(v)\) at each internal node.
+For \(\mu(v)>0\), let \(\pi_v\) be its conditional negative-answer
+probability. Nodes of zero reach probability contribute zero.
+Let \(T\) be the random number of tests.
+
+\begin{lemma}[Tree decompositions]\label{lem:tree}
+One has
+\begin{align}
+ \E_\mu T&=\sum_v\mu(v),\label{eq:tree-depth}\\
+ \Ent(\mu_Y)&=\sum_v\mu(v)h(\pi_v).\label{eq:tree-entropy}
+\end{align}
+For another transcript law \(\nu_Y\), with conditional negative
+probabilities \(\rho_v\), and with \(\mu_Y\) absolutely continuous
+with respect to \(\nu_Y\),
+\begin{equation}\label{eq:tree-divergence}
+ \KL(\mu_Y\Vert\nu_Y)=\sum_v\mu(v)\kl(\pi_v\Vert\rho_v),
+\end{equation}
+where
+\[
+ \kl(u\Vert w)=u\log\frac uw+(1-u)\log\frac{1-u}{1-w}
+\]
+is the relative entropy of two binary laws, with the same
+zero-probability and infinite-divergence conventions as above.
+\end{lemma}
+\begin{proof}
+On each path, \(T\) is the sum of the indicators of visiting internal
+nodes. Taking expectations proves \eqref{eq:tree-depth}.
+
+The probability of a terminal transcript is the product of the
+conditional probabilities of its edges. Expand the negative logarithm
+of that product and average over terminal transcripts. A node \(v\)
+appears only on paths that reach it, with total probability \(\mu(v)\).
+Conditional on reaching it, its average contribution is
+\(-\pi_v\log\pi_v-(1-\pi_v)\log(1-\pi_v)=h(\pi_v)\).
+This proves \eqref{eq:tree-entropy}.
+For \eqref{eq:tree-divergence}, expand the logarithm of the ratio of
+the two products. The conditional average at a reached node is
+\(\kl(\pi_v\Vert\rho_v)\). All sums are finite, so their order can
+be changed without a convergence issue.
+\end{proof}
+
+The reach weight is indispensable. A test available only after a rare
+history contributes only when that history occurs. An unweighted sum
+over nodes would pretend that every branch is traversed in one run.
+
+\begin{example}
+Give the leaves of a binary tree depths \(1,2,2\) and probabilities
+\(1/2,1/4,1/4\). The root is reached with probability one and splits
+fairly. The other internal node is reached with probability \(1/2\)
+and also splits fairly. Both expected depth and entropy are
+\(1+(1/2)\cdot1=3/2\).
+This illustrates a finite-tree identity; it does not assert that
+arbitrary probability splits are realizable by pooled queries.
+\end{example}
+
+\subsection{Expected depth beyond the counting requirement}
+
+In a correct tree on \(\binom{[n]}d\), choose the input uniformly.
+Distinct valid inputs have distinct terminal transcripts, so the
+transcript law is uniform on \(\binom nd\) outcomes. Its entropy is
+\(H=\log\binom nd\).
+Let \(P\) denote this truthful exact-count experiment, and put
+\[
+ L=\E_P T,\qquad \Gamma=L-H.
+\]
+The tree identities give
+\begin{equation}\label{eq:Gamma}
+ \Gamma=\sum_v P(v)\bigl(1-h(\pi_v)\bigr)\ge0,
+ \qquad \pi_v=P(\text{answer }0\mid\text{reach }v).
+\end{equation}
+Thus \(\Gamma\) is both the expected test count in excess of \(H\)
+and the visit-weighted sum of the amounts by which answers fall
+short of one bit of entropy.
+
+Averages satisfy \(L\le\max_D T(D)\), so a lower bound on \(L\)
+is also a lower bound on that maximum. But a modest improvement over
+\(H\) may still be below \(n-1\). The structural part of the proof
+will be needed for the exact conclusion.
+
+\subsection{A weighted comparison for one answer}
+
+Suppose the negative probability is \(\pi\) in the actual experiment
+and \(\rho\) in a comparison experiment, with \(\rho\) far from \(1/2\).
+If \(\pi\) is also far from \(1/2\), the deficiency \(1-h(\pi)\)
+is substantial. If \(\pi\) is near \(1/2\), it differs from \(\rho\),
+producing relative entropy. The following lemma quantifies this
+alternative.
+
+\begin{lemma}[Weighted binary inequality]\label{lem:weighted}
+For \(\omega>0\) and \(\pi,\rho\in[0,1]\),
+\begin{equation}\label{eq:weighted}
+ \omega\bigl(1-h(\pi)\bigr)+\kl(\pi\Vert\rho)
+ \ge\frac{2\omega}{\omega+1}\frac{(\rho-1/2)^2}{\ln2}.
+\end{equation}
+\end{lemma}
+\begin{proof}
+For \(0<\rho<1\), let \(f(u)=\kl(u\Vert\rho)\). Differentiation gives
+\[
+ f(\rho)=f'(\rho)=0,\qquad
+ f''(u)=\frac1{(\ln2)u(1-u)}\ge\frac4{\ln2}.
+\]
+Integrate twice from \(\rho\) to \(u\), reversing directions when
+\(u<\rho\), to get \(f(u)\ge2(u-\rho)^2/\ln2\).
+Apply this also with \(\rho=1/2\), noting
+\(\kl(u\Vert1/2)=1-h(u)\). The left side of \eqref{eq:weighted}
+is then at least
+\[
+ \frac2{\ln2}\left[\omega(\pi-1/2)^2+(\pi-\rho)^2\right].
+\]
+Complete the square:
+\[
+ \omega(\pi-1/2)^2+(\pi-\rho)^2
+ =(\omega+1)\left(\pi-\frac{\omega/2+\rho}{\omega+1}\right)^2
+  +\frac{\omega}{\omega+1}(\rho-1/2)^2.
+\]
+Discarding the square proves the result. Continuity handles finite
+endpoint cases; an infinite relative entropy satisfies the inequality
+as well.
+\end{proof}
+
+The weight \(\omega\) balances the two terms when summing over node
+classes. It changes neither the algorithm nor a probability law.
+We will use \(1/10\) for large pools and \(64\) for certain pairs.
+Their role is to make the final coefficient calculation work, with
+every numerical comparison checked exactly.
+
+\section{Independent inputs and the cost of knowing the exact count}
+\label{sec:product}
+
+The real problem fixes the number of defectives. This section introduces
+an independent input law for comparison and quantifies the cost of
+conditioning it on the required count. At first we discuss input laws
+only; executions on other counts will be defined in the next section.
+
+\subsection{Two input laws on the same finite set}
+
+Let \(X\subseteq[n]\) be a random subset, with indicators
+\(X_i=\mathbf1\{i\in X\}\). Set \(p=d/n\) and \(q=1-p\).
+There are two ways to choose \(X\):
+\begin{itemize}
+\item Under \(P_X\), choose uniformly among the \(d\)-element subsets.
+Thus \(P_X(D)=1/\binom nd\) for \(|D|=d\), and zero otherwise.
+\item Under \(Q_X\), choose the indicators independently, each equal
+to one with probability \(p\). Thus
+\[
+ Q_X(D)=p^{|D|}q^{n-|D|}\qquad(D\subseteq[n]).
+\]
+\end{itemize}
+The second is a Bernoulli product law. Its expected defective count
+is \(np=d\), but its count is not fixed. Having the same mean as the
+promised count does not make it the original input law.
+
+Under \(P_X\), each item individually has defective probability \(p\),
+but items are generally dependent. With exactly one defective among four,
+\[
+ P_X(X_2=1)=\frac14,\qquad
+ P_X(X_2=1\mid X_1=1)=0.
+\]
+Under the independent law with \(p=1/4\), the latter probability
+would still be \(1/4\).
+
+All \(d\)-subsets have the same \(Q_X\)-mass \(p^dq^{n-d}\).
+Consequently
+\begin{equation}\label{eq:conditionrank}
+ P_X=Q_X(\,\cdot\mid |X|=d).
+\end{equation}
+This is an identity, not an approximation.
+For independent subsets,
+\[
+ \Ent(Q_X)
+ =-\E_{Q_X}[|X|\log p+(n-|X|)\log q]=nh(p),
+\]
+because \(\E_{Q_X}|X|=np\).
+Since \(\Ent(P_X)=H=\log\binom nd\), define
+\begin{equation}\label{eq:Kdefinition}
+ K=nh(p)-H.
+\end{equation}
+The next calculation explains why this particular difference also
+has a divergence interpretation.
+
+\begin{lemma}[Exact-count comparison]\label{lem:rank}
+For the laws just defined,
+\begin{equation}\label{eq:rankcost}
+ \KL(P_X\Vert Q_X)=-\log Q_X(|X|=d)=K,\qquad
+ 0\le K\le\log(n+1).
+\end{equation}
+\end{lemma}
+\begin{proof}
+For every valid input \(D\),
+\[
+ \frac{P_X(D)}{Q_X(D)}
+ =\frac1{\binom nd p^dq^{n-d}}
+ =\frac1{Q_X(|X|=d)}.
+\]
+The logarithm of this ratio is constant on the support of \(P_X\).
+Its average equals that same logarithm, namely
+\(-H-d\log p-(n-d)\log q=nh(p)-H\).
+
+For \(0\le k\le n\), put
+\(b_k=Q_X(|X|=k)=\binom nk p^kq^{n-k}\).
+For \(k<n\),
+\[
+ \frac{b_{k+1}}{b_k}=\frac{n-k}{k+1}\frac{d}{n-d}.
+\]
+This ratio decreases with \(k\). At \(k=d-1\) it equals
+\((n-d+1)/(n-d)>1\); at \(k=d\) it equals \(d/(d+1)<1\).
+Hence \(b_d\) is a largest one of \(b_0,\ldots,b_n\).
+These \(n+1\) numbers sum to one, so \(1/(n+1)\le b_d\le1\).
+Taking negative logarithms proves the bounds.
+\end{proof}
+
+\begin{example}
+For \(n=4,d=1,p=1/4\),
+\[
+ Q_X(|X|=1)=4\left(\frac14\right)\left(\frac34\right)^3
+ =\frac{27}{64}.
+\]
+Conditioning gives the uniform law on the four defective labels.
+The comparison cost is \(K=\log(64/27)\).
+The equality of costs across valid inputs is important; it does not
+assert a small cost for every later conditioning event.
+\end{example}
+
+In particular, \(K\le\log(n+1)\) is one bound for the entire input-law
+comparison. It is not a new bound that may be spent independently at
+each node. The tree chain rule will keep the accumulated discrepancy
+within this single total.
+
+\subsection{Increasing and decreasing events}
+
+Identify subsets with their \(0\)-\(1\) vectors. A function is
+\emph{increasing} if changing any coordinate from zero to one cannot
+decrease its value. An event is increasing if its indicator is
+increasing. It is \emph{decreasing} if adding defectives cannot turn
+a false event into a true one.
+
+For fixed \(S\), the event \(X\cap S\ne\varnothing\) is increasing,
+and \(X\cap S=\varnothing\) is decreasing.
+An intersection of positive-test events is increasing too: adding
+defectives preserves all the positive answers.
+
+\begin{lemma}[Association for independent coordinates]\label{lem:association}
+Under a product law on finitely many independent Bernoulli coordinates,
+increasing real functions \(f,g\) satisfy \(\E(fg)\ge(\E f)(\E g)\).
+If \(I\) is increasing with positive probability and \(J_0\) is
+decreasing, then
+\begin{equation}\label{eq:association}
+ \Pr(J_0\mid I)\le\Pr(J_0).
+\end{equation}
+\end{lemma}
+\begin{proof}
+Define \(\operatorname{Cov}(f,g)=\E(fg)-(\E f)(\E g)\).
+Induct on the number of coordinates. With no coordinates the
+functions are constant and covariance is zero.
+Let \(Z\) be the last coordinate. Conditional on \(Z\), the other
+coordinates remain independent, so the induction hypothesis gives
+\(\operatorname{Cov}(f,g\mid Z)\ge0\).
+Put \(f_i=\E(f\mid Z=i)\), \(g_i=\E(g\mid Z=i)\).
+The other-coordinate law is the same at \(i=0\) and \(1\), so
+pointwise increase gives \(f_1\ge f_0\), \(g_1\ge g_0\).
+If \(\Pr(Z=1)=u\), expansion gives
+\[
+ \operatorname{Cov}(f_Z,g_Z)=u(1-u)(f_1-f_0)(g_1-g_0)\ge0.
+\]
+Add and subtract \(\E[\E(f\mid Z)\E(g\mid Z)]\) to obtain
+\[
+ \operatorname{Cov}(f,g)
+ =\E\operatorname{Cov}(f,g\mid Z)
+  +\operatorname{Cov}(\E(f\mid Z),\E(g\mid Z)).
+\]
+Both terms are nonnegative. Constant coordinates may be omitted.
+
+Finally, \(\mathbf1_I\) and \(-\mathbf1_{J_0}\) are increasing.
+Their nonnegative covariance gives
+\(\Pr(I\cap J_0)\le\Pr(I)\Pr(J_0)\).
+Divide by \(\Pr(I)>0\).
+\end{proof}
+
+Coordinates need not remain independent after a positive answer.
+The lemma says instead that increasing constraints cannot raise the
+probability of a decreasing event. That inequality is what we need.
+
+\section{Preparing one tree and defining three experiments}\label{sec:experiments}
+
+Fix a correct deterministic tree for \(\binom{[n]}d\). The tree is
+not random. We will run it under three laws. First we make its
+behavior unambiguous even on histories impossible under the promise.
+
+\subsection{Completing missing branches}
+
+If an answer branch was omitted because no valid input can take it,
+attach an immediate leaf with an arbitrary output. This changes no
+valid input path. It only provides an endpoint for a comparison
+experiment that takes a formerly omitted edge.
+The completed tree is finite. It need not identify inputs outside
+the exact-\(d\) promise; we only need all experiments to be defined.
+
+\subsection{Removing labels already declared negative}
+
+At a node \(v\), let \(Z_v\) be the union of all original pools
+receiving negative answers earlier on its prefix transcript.
+Replace its original query \(S_v\) by
+\begin{equation}\label{eq:normalization}
+ \widehat S_v=S_v\setminus Z_v.
+\end{equation}
+This is the \emph{normalized pool}. The set \(Z_v\) is determined by
+the edge labels on the path, before any probability law is chosen.
+
+\begin{lemma}\label{lem:normalization}
+Normalization preserves every truthful execution on every input subset.
+\end{lemma}
+\begin{proof}
+At the root \(Z_v=\varnothing\). Suppose the original and normalized
+executions have reached the same node after the same truthful answers.
+Every label in a previous negative pool is nondefective, so
+\(X\cap Z_v=\varnothing\). Hence
+\[
+ X\cap S_v=\varnothing
+ \quad\Longleftrightarrow\quad X\cap(S_v\setminus Z_v)=\varnothing.
+\]
+The answers agree. After a negative edge, updating the union by the
+normalized or original pool gives the same result because
+\(Z_v\cup(S_v\setminus Z_v)=Z_v\cup S_v\).
+Induction proves agreement through termination.
+\end{proof}
+
+This proof works for all input subsets, even those of size different
+from \(d\). Empty normalized pools may be retained.
+From now on, pool size and label appearance refer to normalized
+pools. A node is \emph{small} if \(|\widehat S_v|\le2\) and
+\emph{large} if \(|\widehat S_v|\ge3\).
+This classification is fixed by the node and its history.
+
+\subsection{The truthful experiments}
+
+Under \(P_{X,Y}\), draw \(X\) from \(P_X\) and answer all normalized
+queries truthfully. This is the distribution of valid executions
+used in the lower bound.
+Under \(Q_{X,Y}\), draw \(X\) from \(Q_X\) and also answer truthfully.
+The completed tree defines the execution even when \(|X|\ne d\).
+Under these two laws \(Y\) is the same deterministic function of \(X\).
+The exact-count comparison and the chain rule therefore give
+\begin{equation}\label{eq:truthfulcomparison}
+ \KL(P_{X,Y}\Vert Q_{X,Y})=K,\qquad \KL(P_Y\Vert Q_Y)\le K.
+\end{equation}
+This controls accumulated discrepancy over the entire transcript.
+
+\subsection{The artificial reference experiment}
+
+The third joint law \(R_{X,Y}\) is defined by:
+\begin{enumerate}
+\item Draw \(X\) from the independent law \(Q_X\).
+\item At a small node, answer with \(\OR_X(\widehat S_v)\).
+\item At a large node, ignore its OR value and use a new fair bit,
+independent of the input and all preceding bits.
+\item Follow that edge and repeat until a leaf is reached.
+\end{enumerate}
+This is a finite experiment. It could be implemented by sampling a
+fair bit for every large node in advance and using it if visited.
+The law \(R_{X,Y}\) records only input and transcript; unused bits
+are summed out.
+
+The next query remains adaptive, selected by the fixed tree from the
+answers already supplied. Normalization still follows
+\eqref{eq:normalization} syntactically.
+An artificial negative on a large pool removes its labels from later
+queries, but does \emph{not} establish that their input indicators
+are zero under \(R\).
+A small answer is truthful for the normalized pool, which need not
+have the original pool's OR value under an artificial history.
+
+Consequently a reference transcript may be inconsistent with its
+sampled input. This is legitimate: \(R\) is a comparison measure,
+not a proposed identification algorithm. The real algorithm under
+\(P\) still receives only truthful answers and no additional oracle.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{lYYY}
+\toprule
+Joint law&Input law&Answers in the normalized tree&Purpose\\
+\midrule
+\(P_{X,Y}\)&Uniform on \(|X|=d\)&All truthful&
+Average over valid inputs\\
+\(Q_{X,Y}\)&Independent Bernoulli-\(p\)&All truthful&
+Control large-pool probabilities\\
+\(R_{X,Y}\)&Independent Bernoulli-\(p\)&Truthful for size at most two;
+fair independent bits for larger pools&
+Control fresh pairs and untouched labels\\
+\bottomrule
+\end{tabularx}
+\end{center}
+The \(Q\) and \(R\) input marginals agree, but their transcript and
+joint laws generally differ. All averaged counts in the main
+argument will use \(P\), not \(Q\) or \(R\).
+
+\subsection{A fixed-history formula}\label{subsec:history}
+
+Fix a prefix \(\tau\) leading to a node. Let \(a(\tau)\) count its
+preceding large nodes. Let \(E_\tau\) be the event that \(X\) gives
+the prescribed answers at every preceding \emph{small normalized}
+pool. These pools are fixed once \(\tau\) is fixed.
+For every \(D\subseteq[n]\),
+\begin{equation}\label{eq:historyformula}
+ R(X=D,\ \text{reach }\tau)
+ =Q_X(D)\,2^{-a(\tau)}\,\mathbf1_{E_\tau}(D).
+\end{equation}
+Indeed, each prescribed large answer has probability \(1/2\);
+each prescribed small answer has probability one or zero according
+to whether \(D\) satisfies it. Multiply these factors along the
+fixed path, together with the input mass.
+The same formula holds at a terminal transcript, with reaching it
+meaning termination there.
+
+Sum over \(D\), and then divide when the reach probability is positive:
+\[
+ R(\text{reach }\tau)=2^{-a(\tau)}Q_X(E_\tau),\qquad
+ R(X=D\mid\text{reach }\tau)=Q_X(D\mid E_\tau).
+\]
+In particular,
+\begin{equation}\label{eq:posterior}
+ R_{X\mid\text{reach }\tau}=Q_X(\,\cdot\mid E_\tau).
+\end{equation}
+
+Let \(V_\tau\) be the union of the preceding small pools.
+The event \(E_\tau\) depends only on coordinates in \(V_\tau\).
+For a configuration \(z\) on its complement, independence gives
+\[
+ Q_X((X_i)_{i\notin V_\tau}=z,\ E_\tau)
+ =Q_X((X_i)_{i\notin V_\tau}=z)\,Q_X(E_\tau).
+\]
+After division, those coordinates have their original product law
+under the conditional reference experiment. Thus labels absent from
+all preceding small pools remain mutually independent Bernoulli-\(p\),
+even if they occurred in large pools. No independence within
+\(V_\tau\) is asserted.
+
+\begin{example}[An artificial negative]
+Take six labels with promised count \(d=2\), so that \(p=1/3\).
+Suppose the first query is \(\{1,2,3\}\), and after
+answer zero the original next query is \(\{2,4,5\}\). Its normalized
+version is \(\{4,5\}\). These can be initial queries of a legal
+strategy that finishes by individual testing on each branch.
+
+Under \(R\), the first answer is fair and can be zero even for
+the sampled input \(D=\{1,4\}\). The second normalized query then
+answers one truthfully. On the fixed prefix \(01\), the only input
+constraint is \(X\cap\{4,5\}\ne\varnothing\), and
+\[
+ R(X=D,\text{reach }01)
+ =Q_X(D)\,\frac12\,\mathbf1\{D\cap\{4,5\}\ne\varnothing\}.
+\]
+Coordinates \(1,2,3,6\) remain independent Bernoulli-\(p\) conditional
+on this prefix. The artificial zero has not fixed \(1,2,3\) to be
+nondefective. Coordinates \(4,5\), however, are constrained by a positive OR
+answer and need not be independent. This illustrates the experiment,
+not an application of the forthcoming density-\(1/4\) inequality.
+\end{example}
+
+\section{The whole-tree information bound near density one quarter}
+\label{sec:whole}
+
+We now apply the tools to a fixed correct tree. Retain \(p=d/n\),
+\(q=1-p\), and suppose throughout this section that
+\begin{equation}\label{eq:localinterval}
+ \frac{249}{1000}\le p\le\frac{251}{1000}.
+\end{equation}
+Near \(p=1/4\), three independent items are all good
+(that is, nondefective) with probability
+near \((3/4)^3<1/2\), whereas two are all good with probability near
+\((3/4)^2>1/2\). This explains the division into large pools and
+pairs. The actual argument must make such bounds valid after
+adaptive histories, not only before any tests.
+
+\begin{theorem}[The whole-tree inequality]\label{thm:whole}
+Suppose \eqref{eq:localinterval} holds. For any finite correct
+deterministic adaptive tree, set
+\[
+ L=\E_P T,\qquad H=\log\binom nd,\qquad
+ K=nh(p)-H,\qquad \Gamma=L-H.
+\]
+Then
+\begin{equation}\label{eq:WT}
+ \boxed{6615\Gamma\ge n-H-67229K.}
+\end{equation}
+The same inequality holds with \(M(d,n)-H\) in place of \(\Gamma\).
+\end{theorem}
+
+When the right side is positive, this forces a positive expected
+excess over \(H\), and is stronger than the information bound alone.
+Its form will matter in the final proof: \(K\le\log(n+1)\) is a
+logarithmic error, whose size we will control explicitly.
+We prove the theorem in the following stages.
+
+Here is the accounting plan. We will introduce three expected counts:
+\(A\), the number of large queries; \(B\), the number of pairs whose
+two labels have not appeared in a preceding small query; and \(W\),
+the number of labels never appearing in a small query. Counting
+first appearances separately on each path will give
+\[
+ n-L\le B+W-A.
+\]
+Thus we need upper bounds for \(A\) and for \(B+W\). Comparing \(P\)
+with the truthful product law \(Q\) will control \(A\). Comparing
+\(P\) with the artificial law \(R\) will control \(B+W\), while
+retaining a useful subtraction for the large nodes. The separate
+entropy deficiencies will then combine within \(\Gamma\).
+This paragraph describes the destination; each inequality is proved below.
+
+\subsection{Separate the entropy contributions}
+
+Recall
+\(\Gamma=\sum_vP(v)(1-h(\pi_v))\), with \(\pi_v\) the actual
+\(P\)-conditional negative probability.
+In both transcript comparisons, the first law in the divergence is
+\(P_Y\). The tree-divergence formula therefore uses the contributions
+\[
+ P(v)\kl(\pi_v\Vert\rho_v^Q)
+ \quad\hbox{and}\quad
+ P(v)\kl(\pi_v\Vert\rho_v^R),
+\]
+respectively. The reach weight is always \(P(v)\), not \(Q(v)\)
+or \(R(v)\). Only the second binary parameter changes with the
+comparison experiment.
+Define
+\[
+ A=\sum_{v\ \mathrm{large}}P(v),\qquad
+ \Glg=\sum_{v\ \mathrm{large}}P(v)(1-h(\pi_v)).
+\]
+The first is the expected number of large queries, while the second
+is their contribution to entropy deficiency. Both use actual-law
+weights. We will keep these contributions separate from those of a
+second query class, rather than giving every class the full sum
+\(\Gamma\).
+
+\subsection{Large pools under the truthful product law}
+
+Every \(P\)-reachable node is \(Q\)-reachable, since some valid
+input reaches it and every input subset has positive \(Q_X\)-mass.
+Fix such a node \(v\), and work under the truthful experiment \(Q\).
+Reaching it imposes two kinds of conditions. First, every coordinate
+in \(Z_v\), the union of earlier negative pools, must be zero.
+Conditional on these fixed zeros, the remaining coordinates still
+have their independent Bernoulli-\(p\) law. Second, each earlier
+positive answer requires its pool to contain a defective. After
+deleting coordinates in \(Z_v\), the intersection \(I_v\) of those
+positive requirements is an increasing event on the remaining
+coordinates.
+
+Write \(F_v=\{X_i=0\text{ for every }i\in Z_v\}\), and let
+\(J_v=\{X\cap\widehat S_v=\varnothing\}\).
+The latter event is decreasing and uses only coordinates outside
+\(Z_v\). Reaching \(v\) is exactly the event \(F_v\cap I_v\);
+it has positive \(Q\)-probability. Apply the association inequality
+under the product law conditional on \(F_v\):
+\begin{equation}\label{eq:largeprob}
+ \begin{aligned}
+ \rho_v^Q
+ &:=Q(\text{answer }0\mid\text{reach }v)
+   =Q(J_v\mid F_v,I_v)\\
+ &\le Q(J_v\mid F_v)=q^{|\widehat S_v|}.
+ \end{aligned}
+\end{equation}
+Overlap among the positive pools, or between them and the current
+pool, is allowed. The remaining coordinates need not be independent
+after conditioning on \(I_v\); association is what justifies the
+inequality without that additional independence.
+
+At a large node,
+\[
+ \rho_v^Q\le(751/1000)^3<\frac{17}{40},\qquad
+ \frac12-\rho_v^Q>\frac3{40}.
+\]
+The cubic inequality is certified by
+\(751^3=423564751<425000000\).
+Also \(\ln2<7/10\), because
+\[
+ e^{7/10}>1+\frac7{10}+\frac{49}{200}+\frac{343}{6000}
+ =\frac{12013}{6000}>2.
+\]
+The strict lower bound on the exponential follows, for example,
+by successive integration of \(e^x>1\) for \(x>0\).
+
+Use the weighted inequality with \(\omega=1/10\).
+Its right side is greater than
+\[
+ \frac2{11}\frac{(3/40)^2}{7/10}
+ =\frac9{6160}>\frac1{685},
+ \qquad 9\cdot685=6165>6160.
+\]
+At every large node with \(P(v)>0\), multiplication by \(P(v)\) gives
+\[
+ \frac{P(v)}{685}
+ <\frac{P(v)}{10}(1-h(\pi_v))
+   +P(v)\kl(\pi_v\Vert\rho_v^Q).
+\]
+Sum over large nodes. The first terms total \(\Glg/10\);
+the second terms form part of the nonnegative tree-divergence sum
+\(\KL(P_Y\Vert Q_Y)\le K\). Nodes with \(P(v)=0\) add zero.
+Weakening the resulting strict bound if necessary, we obtain
+\begin{equation}\label{eq:Alarge}
+ \frac A{685}\le\frac{\Glg}{10}+K,\qquad
+ \boxed{A\le\frac{137}{2}\Glg+685K.}
+\end{equation}
+A large expected number of large queries thus requires entropy
+deficiency on those nodes or comparison cost. The latter is limited
+by the single whole-tree quantity \(K\).
+
+\subsection{Fresh pairs under the reference law}
+
+A \emph{fresh pair} is a normalized query with two labels neither
+of which has appeared in a preceding small normalized pool.
+They may have appeared in large pools. Define
+\[
+ B=\sum_{v\ \mathrm{fresh}}P(v),\qquad
+ \Gfr=\sum_{v\ \mathrm{fresh}}P(v)(1-h(\pi_v)).
+\]
+Thus \(B\) is an expected number of queries and \(\Gfr\) their
+entropy contribution. Fresh pairs are small, so their nodes are
+disjoint from large nodes and
+\begin{equation}\label{eq:entropysplit}
+ \Glg+\Gfr\le\Gamma.
+\end{equation}
+
+Every \(P\)-reachable history is also \(R\)-reachable. To see this,
+choose a valid input reaching it truthfully. This input has positive
+\(Q_X\)-mass, it satisfies every small-answer constraint, and the
+finite prescribed sequence of fair large answers has positive
+probability. Formula~\eqref{eq:historyformula} therefore gives positive
+reference mass. The same argument at terminal transcripts proves
+that \(P_Y\) is absolutely continuous with respect to \(R_Y\).
+It also shows that every pair of positive \(P_{X,Y}\)-mass has
+positive \(R_{X,Y}\)-mass. All subsequent reference conditional
+probabilities and divergences are consequently well defined.
+
+The reference posterior \eqref{eq:posterior} leaves the two fresh
+coordinates independent Bernoulli-\(p\). Consequently
+\[
+ \rho_v^R=R(\text{answer }0\mid\text{reach }v)=q^2
+ \ge(749/1000)^2>\frac{14}{25},\qquad
+ \rho_v^R-\frac12>\frac3{50}.
+\]
+The exact square comparison is \(749^2=561001>560000\).
+Earlier large positive answers in the truthful experiment might have
+constrained these labels. In \(R\), those answers impose no input
+constraint on a fixed history; this is why the reference process is
+useful here.
+
+\subsection{The joint divergence has an exact value}
+
+For a valid input \(D\), let \(y(D)\) be its truthful terminal
+transcript, \(\ell(D)\) its terminal leaf, and \(a(D)\) the number
+of large queries along that path.
+The actual joint law gives \((D,y(D))\) mass \(1/\binom nd=2^{-H}\).
+In the reference experiment every small answer on this truthful
+path agrees with \(D\), and every prescribed large answer has
+probability \(1/2\). Thus
+\begin{equation}\label{eq:Rpoint}
+ R_{X,Y}(D,y(D))=Q_X(D)\,2^{-a(D)}
+ =2^{-nh(p)-a(D)}.
+\end{equation}
+The logarithmic ratio of actual to reference joint mass there is
+\[
+ \log\frac{2^{-H}}{2^{-nh(p)-a(D)}}=K+a(D).
+\]
+Average under \(P\), for which \(\E_P a(X)=A\), to obtain
+\begin{equation}\label{eq:jointvalue}
+ \boxed{\KL(P_{X,Y}\Vert R_{X,Y})=K+A.}
+\end{equation}
+This is a statement about input and transcript together. It is not
+yet a value for transcript divergence alone.
+
+\subsection{Labels untouched by small pools}
+
+On the truthful path of \(D\), let \(V(D)\) be the union of all
+small normalized pools. Define
+\[
+ w_1(D)=|D\setminus V(D)|,\quad
+ w_0(D)=|([n]\setminus D)\setminus V(D)|,\quad
+ w(D)=w_1(D)+w_0(D).
+\]
+These count defective, nondefective, and total labels never seen in
+a small pool. They are quantities on one path, not yet averages.
+They may include labels used in large pools. Put \(W=\E_P w(X)\).
+
+Consider the following particular class of reference inputs:
+\[
+ \mathcal A_D=\{D'\subseteq[n]:D'\cap V(D)=D\cap V(D)\}.
+\]
+Each agrees coordinate by coordinate with \(D\) on every small pool
+of the fixed transcript \(y(D)\), so supplies all the prescribed
+small answers. The prescribed large answers depend only on fair
+reference bits and together have probability \(2^{-a(D)}\).
+Thus the total reference mass reaching \(y(D)\) from this class is
+\[
+ 2^{-a(D)}Q_X(\mathcal A_D)
+ =2^{-a(D)}p^{d-w_1(D)}q^{n-d-w_0(D)}.
+\]
+Here we fixed \(d-w_1(D)\) defective and \(n-d-w_0(D)\) nondefective
+coordinates inside \(V(D)\). Each outside coordinate is unrestricted:
+summing its two possibilities contributes \(p+q=1\). There may be
+additional reference inputs producing the prescribed small OR
+answers without agreeing coordinate by coordinate on \(V(D)\).
+Ignoring those inputs gives a lower bound:
+\begin{align}
+ R_Y(y(D))
+ &\ge2^{-a(D)}p^{d-w_1(D)}q^{n-d-w_0(D)}\nonumber\\
+ &=2^{-a(D)}Q_X(D)\,p^{-w_1(D)}q^{-w_0(D)}.
+ \label{eq:leafbound}
+\end{align}
+Inputs in \(\mathcal A_D\) can have different total defective counts.
+This is permitted in the reference experiment; the real algorithm's
+exact-count promise has not been enlarged.
+
+\subsection{One bound shared by transcript and conditional divergence}
+
+Write
+\[
+ \mathcal D_R=\KL(P_Y\Vert R_Y),\qquad
+ J=\E_P\left[w_1(X)\log\frac1p+w_0(X)\log\frac1q\right].
+\]
+Here \(\mathcal D_R\) concerns transcripts alone. The quantity \(J\)
+is an actual-law average of information associated with untouched
+labels. The joint chain rule is the exact identity
+\begin{equation}\label{eq:mainchain}
+ K+A=\mathcal D_R+
+ \sum_{y:P_Y(y)>0}P_Y(y)
+       \KL(P_{X\mid Y=y}\Vert R_{X\mid Y=y}).
+\end{equation}
+
+At \(y(D)\), correctness leaves exactly one valid input, \(D\).
+Thus the actual conditional input law is the point mass at \(D\).
+The reference conditional probability is
+\[
+ R(X=D\mid Y=y(D))
+ =\frac{R_{X,Y}(D,y(D))}{R_Y(y(D))}
+ \le p^{w_1(D)}q^{w_0(D)}.
+\]
+The inequality follows from \eqref{eq:Rpoint} and \eqref{eq:leafbound}:
+the numerator is known exactly and the denominator has a lower
+bound, producing an upper bound on the quotient. By the point-mass
+formula~\eqref{eq:pointKL}, the conditional divergence is at least
+\[
+ w_1(D)\log\frac1p+w_0(D)\log\frac1q.
+\]
+Substitute its average into \eqref{eq:mainchain}:
+\begin{equation}\label{eq:shared}
+ 0\le\mathcal D_R,\qquad \boxed{\mathcal D_R+J\le K+A.}
+\end{equation}
+
+The direction has a concrete meaning. The full joint divergence is
+\(K+A\). At least \(J\) of it remains in the conditional input
+comparison after the transcript is observed. Hence at most
+\(K+A-J\) is available for transcript divergence. The lower bound
+on the conditional term produces an upper bound on the marginal
+term, and this will let us bound two counts together.
+
+The direction can also be checked directly from leaf probabilities:
+\[
+ \log\frac{P_Y(y(D))}{R_Y(y(D))}
+ \le K+a(D)-w_1(D)\log\frac1p-w_0(D)\log\frac1q.
+\]
+Its \(P\)-average is exactly \(\mathcal D_R\le K+A-J\).
+
+We need a simple lower bound on the information per untouched label.
+In our interval \(p\le q\le751/1000<151/200\).
+The exact inequalities
+\[
+ (151/200)^2<4/7,\qquad
+ (151/200)^5<(4/7)^2(151/200)=302/1225<1/4
+\]
+show that \(p^5,q^5<2^{-2}\).
+For the first rational comparison, \(7\cdot22801=159607<160000\);
+for the last, \(4\cdot302=1208<1225\).
+Taking logarithms gives \(\log(1/p)>2/5\) and \(\log(1/q)>2/5\).
+Therefore
+\begin{equation}\label{eq:J}
+ J\ge\frac25 W.
+\end{equation}
+
+\subsection{Retain the contribution of fair artificial answers}
+
+At a large node the conditional reference answer is fair. Its
+contribution to the transcript divergence is
+\(\kl(\pi_v\Vert1/2)=1-h(\pi_v)\).
+The total contribution of large nodes to \(\mathcal D_R\) is
+therefore exactly \(\Glg\).
+All other node divergences are nonnegative. In particular the sum
+over fresh-pair nodes is at most \(\mathcal D_R-\Glg\).
+
+At a fresh pair use the weighted inequality with \(\omega=64\).
+Its right side is greater than
+\[
+ \frac{128}{65}\frac{(3/50)^2}{7/10}
+ =\frac{576}{56875}>\frac1{99},
+ \qquad 576\cdot99=57024>56875.
+\]
+At a fresh-pair node with \(P(v)>0\), we consequently have
+\[
+ \frac{P(v)}{99}
+ <64P(v)(1-h(\pi_v))
+   +P(v)\kl(\pi_v\Vert\rho_v^R).
+\]
+Sum with the actual-law reach weights. The first terms total
+\(64\Gfr\). The divergence terms from all large nodes total exactly
+\(\Glg\), and every other node contributes nonnegatively.
+The fresh-pair divergence sum is therefore at most
+\(\mathcal D_R-\Glg\), yielding
+\begin{equation}\label{eq:freshsum}
+ \frac B{99}\le64\Gfr+\mathcal D_R-\Glg.
+\end{equation}
+Combine this with \eqref{eq:shared}, keeping its conditional term:
+\[
+ \frac B{99}+J\le64\Gfr+K+A-\Glg.
+\]
+Multiply by \(99\). Since \(99J\ge(198/5)W\ge W\), we get
+\begin{equation}\label{eq:coupled}
+ \boxed{B+W\le6336\Gfr+99K+99A-99\Glg.}
+\end{equation}
+The estimate controls fresh pairs and untouched labels jointly.
+The subtraction of \(\Glg\) is useful: the large nodes have already
+used that exact portion of the transcript divergence, leaving only
+the remainder for fresh pairs.
+
+\subsection{Count first appearances on a single path}
+
+Fix a valid \(D\). Let \(t(D)\) be its number of tests and \(b(D)\)
+its number of fresh pairs. Its number of small queries is
+\(t(D)-a(D)\).
+Count a label when it first appears in a small pool:
+\begin{itemize}
+\item an empty pool adds none;
+\item a singleton adds at most one;
+\item a pair with a previously seen label adds at most one;
+\item a fresh pair adds two, one more than that general allowance.
+\end{itemize}
+Consequently
+\[
+ |V(D)|\le t(D)-a(D)+b(D).
+\]
+This is a pathwise combinatorial inequality, valid with arbitrary
+overlaps. Since \(|V(D)|=n-w(D)\), average under \(P\) to obtain
+\begin{equation}\label{eq:firstappear}
+ n-W\le L-A+B,\qquad n-L\le B+W-A.
+\end{equation}
+The probability law is the same for all the expectations on this line.
+
+\subsection{Finish the coefficient calculation}
+
+Insert \eqref{eq:coupled} into \eqref{eq:firstappear}, and then use
+\eqref{eq:Alarge}:
+\begin{align*}
+ n-L
+ &\le6336\Gfr+99K+99A-99\Glg-A\\
+ &=6336\Gfr+99K+98A-99\Glg\\
+ &\le6336\Gfr+
+       \left(98\cdot\frac{137}{2}-99\right)\Glg
+       +(99+98\cdot685)K\\
+ &=6336\Gfr+6614\Glg+67229K.
+\end{align*}
+The arithmetic is \(98\cdot137/2=6713\) and
+\(98\cdot685=67130\).
+Because \(6336\le6614\) and \(\Gfr+\Glg\le\Gamma\),
+\[
+ n-L\le6614\Gamma+67229K.
+\]
+Now \(L=H+\Gamma\), so \(n-H=(n-L)+\Gamma\) gives
+\[
+ n-H\le6615\Gamma+67229K,
+\]
+which is \eqref{eq:WT}. An optimal worst-case tree has
+\(L\le M(d,n)\). Replacing \(L-H\) by the larger \(M(d,n)-H\)
+preserves the lower-bound inequality and proves the last assertion
+of Theorem~\ref{thm:whole}.\quad\hfill\(\square\)
+
+All query types have been included: large pools through the product
+comparison, fresh pairs through the reference posterior, and other
+small pools through nonnegative omitted terms and the first-appearance
+count. The finite-tree identities allow one-sided feasible answers,
+empty pools, and unequal leaf depths. The artificial process has
+served only as a comparison law.
+
+\section{A structural relation between different testing problems}
+\label{sec:structural}
+
+The information bound applies near density \(1/4\). To use it for
+Theorem~\ref{thm:main}, we need a relation that moves between complete
+families of different sizes. This section is entirely deterministic.
+Its simulations use actual pooled-OR queries; no independent input law
+or artificial answers are involved.
+
+\subsection{Complexity of a candidate family}
+
+A \emph{candidate family} \(\mathcal F\) is a nonempty finite set of
+possible defective subsets of a specified ground set. The algorithm
+is told the family, and must identify its member using legal OR tests.
+A legal query is still any subset \(S\) of that ground set, with
+answer one on candidate \(D\) exactly when \(S\cap D\ne\varnothing\).
+Knowing the family does not mean knowing which member is actual,
+and does not permit arbitrary binary questions about its members.
+Let \(\Comp(\mathcal F)\) denote the minimum worst-case depth.
+Thus
+\[
+ M(d,n)=\Comp\left(\binom{[n]}d\right).
+\]
+This notation lets us discuss the families left after tests, which
+need not be complete families of equal-size subsets.
+
+\begin{lemma}[Elementary reductions]\label{lem:family}
+The following operations have the stated effects:
+\begin{enumerate}
+\item Restriction to a nonempty subfamily cannot increase complexity.
+\item Relabeling items preserves complexity.
+\item Removing labels known to be nondefective preserves complexity.
+\item Adjoining the same fixed defective labels to every candidate
+preserves complexity.
+\item A tree may be reduced so that both children of every internal
+node have nonempty candidate families, without increasing its depth.
+\end{enumerate}
+\end{lemma}
+\begin{proof}
+A tree correct for a family is also correct for each subfamily;
+impossible paths may be removed. This proves the first assertion
+and fixes its direction.
+For relabeling, apply the same bijection to every candidate and query.
+All intersection answers are preserved, and the inverse bijection
+gives the reverse comparison.
+
+A known nondefective label can be deleted from any pool without
+changing an answer. Conversely an algorithm that ignores that label
+still works when it is present.
+If every candidate contains a fixed defective label, any query
+containing it is constantly positive. Suppress such a query, following
+its positive branch without a test. Other queries ask only about
+the remaining unknown part. In the other direction, a tree for that
+unknown part also identifies the family with the fixed labels
+adjoined. This proves equality of complexities.
+
+Finally, if one child of an internal node has no possible candidates,
+the answer is forced on every remaining input. Suppress that query
+and continue into the other child. Repeating this operation terminates
+in a finite tree. Leaves remain correct and path lengths do not increase.
+\end{proof}
+
+These reductions use information already contained in the specified
+candidate family. They do not give the algorithm extra knowledge about
+which member is the actual input.
+In a reduced tree an internal node cannot have only one surviving
+candidate, since then no query could have two nonempty children.
+
+\subsection{The endpoint problems}
+
+\begin{lemma}\label{lem:endpoints}
+\[
+ M(N-1,N)=N-1\quad(N\ge2),\qquad M(1,2)=1,\qquad M(1,3)=2.
+\]
+\end{lemma}
+\begin{proof}
+When exactly one item is good, every pool of size at least two is
+positive. Empty queries are constant too. A singleton query can
+ask whether a particular label is the one good item.
+For the lower bound, follow a feasible adversarial branch. While at
+least two possible locations of the nondefective item remain,
+answer a singleton test positively whenever its label is still a
+candidate location. This declares that label defective, eliminates
+exactly one possible location, and leaves at least one candidate.
+Pools of size at least two, and singletons already eliminated as
+possible locations, are forced positive and eliminate nothing further.
+An empty pool is forced negative and likewise eliminates nothing.
+Starting with \(N\) possible locations, this feasible branch therefore
+requires at least \(N-1\) tests before only one location remains.
+Individual testing achieves that number.
+
+With one defective among two or three items, the numbers of
+candidates are respectively two and three. A binary tree needs at
+least one or two tests by leaf counting. Individual testing achieves
+those bounds.
+\end{proof}
+
+\subsection{Two distinguished labels}
+
+The next identity is the key structural step. It explains the
+complexity of a family in which we know that at least one of two
+specified labels is defective.
+
+Let \(U\) contain \(m\) ordinary labels, and let \(\xi,\eta\) be two
+additional distinct labels. Fix \(1\le k<m\). Define
+\[
+ \mathcal F=\binom Uk,\qquad \mathcal G=\binom U{k-1}.
+\]
+For this subsection only, \(\xi D\) means \(\{\xi\}\cup D\), and
+\(\xi\eta E\) means \(\{\xi,\eta\}\cup E\).
+Consider
+\begin{align*}
+ \mathcal J
+ &=\{\xi D:D\in\mathcal F\}
+   \cup\{\eta D:D\in\mathcal F\}
+   \cup\{\xi\eta E:E\in\mathcal G\},\\
+ \mathcal C
+ &=\mathcal F\cup\{\eta E:E\in\mathcal G\}
+   =\binom{U\cup\{\eta\}}k.
+\end{align*}
+Every member of \(\mathcal J\) has exactly \(k+1\) defectives and
+meets \(\{\xi,\eta\}\). Its three types are:
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Distinguished defectives&Ordinary defectives&Candidate form\\
+\midrule
+Only \(\xi\)&\(k\) labels from \(U\)&\(\xi D\)\\
+Only \(\eta\)&\(k\) labels from \(U\)&\(\eta D\)\\
+Both&\(k-1\) labels from \(U\)&\(\xi\eta E\)\\
+\bottomrule
+\end{tabular}
+\end{center}
+The family \(\mathcal C\) is an ordinary complete problem: \(k\)
+defectives among \(m+1\) labels.
+
+\begin{lemma}[Two-label identity]\label{lem:two}
+\[
+ \Comp(\mathcal J)=1+\Comp(\mathcal C)=1+M(k,m+1).
+\]
+\end{lemma}
+
+\paragraph{The easy direction.}
+Test \(\{\xi\}\). On a positive answer the remaining family is
+\(\{\xi C:C\in\mathcal C\}\), whose complexity is
+\(\Comp(\mathcal C)\) after deleting the fixed defective \(\xi\).
+On a negative answer the family is
+\(\{\eta D:D\in\mathcal F\}\), with complexity
+\(\Comp(\mathcal F)\le\Comp(\mathcal C)\) by restriction.
+Thus \(\Comp(\mathcal J)\le1+\Comp(\mathcal C)\).
+
+The reverse direction must work even if a proposed tree never begins
+by testing a distinguished label. We will convert any reduced tree
+for \(\mathcal J\), of height \(s\), into a legal tree for
+\(\mathcal C\) of height at most \(s-1\).
+
+\paragraph{What can ordinary queries distinguish?}
+A query contained in \(U\) will be called ordinary.
+After a prefix made only of ordinary queries, let
+\(\mathcal A\subseteq\mathcal F\) and
+\(\mathcal B\subseteq\mathcal G\) be the ordinary subsets consistent
+with those answers. The surviving family in \(\mathcal J\) is
+\begin{equation}\label{eq:ordinaryfamily}
+ \{\xi D:D\in\mathcal A\}
+ \cup\{\eta D:D\in\mathcal A\}
+ \cup\{\xi\eta E:E\in\mathcal B\}.
+\end{equation}
+In particular, \(\xi D\) and \(\eta D\) cannot be distinguished by
+ordinary queries: both meet an ordinary pool exactly when \(D\) does.
+
+There is also a useful relation between the two subset sizes.
+If \(E,E'\) are distinct members of \(\mathcal B\), choose
+\(z\in E'\setminus E\). Then \(E\cup\{z\}\) belongs to
+\(\mathcal A\). To verify this, every earlier positive pool meets
+\(E\), and therefore also meets \(E\cup\{z\}\).
+Every earlier negative pool avoids \(E'\), hence avoids \(z\);
+it also avoids \(E\). So all negative answers are preserved.
+The enlarged set has size \(k\), as required. We have proved
+\begin{equation}\label{eq:extension}
+ \mathcal A=\varnothing,\quad \mathcal B\ne\varnothing
+ \quad\Longrightarrow\quad |\mathcal B|=1.
+\end{equation}
+
+\paragraph{A deepest ordinary-only path is impossible.}
+Suppose a reduced \(\mathcal J\)-tree of height \(s\) has a leaf
+at depth \(s\) identifying \(\xi\eta E\), and all queries on its
+path are ordinary. Consider its parent, at depth \(s-1\).
+Its two nonempty children must both be leaves, so at most two
+candidates can survive at the parent.
+If its \(\mathcal A\) is nonempty, any \(D\in\mathcal A\) supplies
+the distinct candidates \(\xi D,\eta D,\xi\eta E\), giving at
+least three. If \(\mathcal A\) is empty, \eqref{eq:extension}
+makes the surviving family a singleton, contrary to an internal
+node of a reduced tree. Both possibilities are impossible.
+
+Therefore an ordinary-only leaf of the form \(\xi\eta E\) has
+depth at most \(s-1\). This observation will handle paths where
+there is no special query to skip.
+
+\paragraph{The simulation when a distinguished query occurs.}
+The idea is to assign each possible input \(C\) of the new problem
+an injective representative \(\phi(C)\) in the old problem.
+Once this assignment is selected, the simulation maintains the
+following invariant: every currently possible \(C\) has its
+representative among the surviving candidates of the old tree,
+and every query actually asked has the same answer on \(C\) as the
+old query has on \(\phi(C)\). An old query may be skipped only when
+its answer is known for every current representative. The new
+transcript then follows a well-defined path through the old tree,
+without knowing which input is actual. We will choose one of two
+assignments at the first distinguished query; both preserve every
+earlier ordinary answer.
+
+Run a new algorithm on an unknown \(C\in\mathcal C\). Until the first
+query containing a distinguished label, use the same ordinary queries
+as the \(\mathcal J\)-tree. The possible inputs in \(\mathcal C\)
+at that point are \(\mathcal A\cup\{\eta E:E\in\mathcal B\}\);
+the corresponding candidates in \eqref{eq:ordinaryfamily} have
+the same ordinary answers.
+
+A query containing both \(\xi\) and \(\eta\) is constantly positive
+on \(\mathcal J\), so it is absent in the reduced tree.
+The first nonordinary query therefore contains exactly one of them.
+There are two cases.
+
+\begin{enumerate}
+\item If it contains \(\xi\), enter its positive child without testing.
+From that point represent the possible inputs by
+\[
+ D\in\mathcal F\longmapsto \xi D,\qquad
+ \eta E\in\mathcal C\longmapsto\xi\eta E.
+\]
+Every representative satisfies the previous ordinary answers and
+contains \(\xi\), so it satisfies the skipped positive answer.
+Later queries containing \(\xi\) are skipped into their positive
+children. A query avoiding \(\xi\) is asked unchanged on
+\(U\cup\{\eta\}\). Its OR answer equals the representative's answer,
+because the only added defective label is \(\xi\).
+
+\item If the first query contains \(\eta\), instead use
+\[
+ D\in\mathcal F\longmapsto\eta D,\qquad
+ \eta E\in\mathcal C\longmapsto\xi\eta E.
+\]
+Again skip that query into its positive child, and skip any later
+query containing \(\eta\). For a later query avoiding \(\eta\),
+keep its ordinary labels and replace \(\xi\), if present, by the
+label \(\eta\) of the \(\mathcal C\)-problem.
+To check this replacement, write the old query as \(S\) or
+\(S\cup\{\xi\}\), where \(S\subseteq U\). For a new input
+\(D\in\mathcal F\), its representative is \(\eta D\):
+\(\eta\) is absent from the new input and \(\xi\) is absent from
+the representative. For a new input \(\eta E\), its representative
+is \(\xi\eta E\): both of these compared labels are present.
+In either case the ordinary part \(S\) meets precisely the same
+ordinary defectives. Replacing \(\xi\) by \(\eta\) therefore preserves
+the OR answer, including when \(S\) is empty.
+\end{enumerate}
+
+These representatives are part of a mathematical simulation, not
+information revealed about the actual input. The choices of which
+case applies depend only on the query reached in the original tree.
+All asked questions are subsets of \(U\cup\{\eta\}\), and are
+ordinary pooled-OR tests. The representation in either case is
+injective, so the identifying output of the old tree uniquely
+determines the input of the new one. The original family has the
+known count \(k+1\), the simulated family the known count \(k\);
+each specified representation adds exactly one defective.
+
+\paragraph{Check every path length.}
+Any simulated path that reaches a distinguished query skips at
+least that first query, so has length at most \(s-1\).
+If no such query occurs, it ends at an ordinary-only leaf.
+That leaf cannot identify \(\xi D\) or \(\eta D\), which are
+indistinguishable by ordinary queries. It identifies \(\xi\eta E\),
+and its depth is at most \(s-1\) by the parent argument above.
+Its corresponding \(\mathcal C\)-input is uniquely \(\eta E\).
+Thus every simulated path has length at most \(s-1\).
+We have \(\Comp(\mathcal C)\le s-1\), completing the lower bound
+and the proof of Lemma~\ref{lem:two}.\quad\hfill\(\square\)
+
+When \(k=1\), the family \(\mathcal G\) consists of the empty set.
+The same proof works: its extension argument requires no pair of
+distinct members in that case, and a nonempty \(\mathcal B\)
+already has just one member.
+
+\subsection{The recurrence and its direction}
+
+\begin{proposition}\label{prop:recurrence}
+For integers \(r\ge2\) and \(N\ge r+2\),
+\begin{equation}\label{eq:recurrence}
+ \boxed{M(r,N)\ge
+ \min\{1+M(r,N-1),\ 2+M(r-1,N-1)\}.}
+\end{equation}
+\end{proposition}
+\begin{proof}
+Take a reduced optimal tree for the complete family of \(r\)-subsets
+of an \(N\)-element set. Its root cannot be a constant query.
+
+If its pool is a singleton, the negative child is a complete
+\((r,N-1)\) problem. The root plus that child gives height at least
+\(1+M(r,N-1)\). The positive child may be harder, but ignoring it
+cannot invalidate this lower bound on the maximum of child depths.
+
+If its pool has at least two labels, choose distinct \(\xi,\eta\)
+inside it. Every \(r\)-subset meeting this pair gives a positive
+root answer, irrespective of the other labels in the pool.
+Thus the positive child contains the family \(\mathcal J\) of
+Lemma~\ref{lem:two}, with \(U\) the other \(N-2\) labels and
+\(k=r-1\). The conditions \(r\ge2,N\ge r+2\) ensure
+\(1\le k<|U|\).
+By restriction and the identity, the child's complexity is at least
+\(1+M(r-1,N-1)\). Add the root to get
+\(2+M(r-1,N-1)\).
+
+Every nonconstant root belongs to one of these cases. Each tree is
+at least as deep as the bound for its case, and hence at least as
+deep as the smaller of the two bounds. This explains the minimum
+in \eqref{eq:recurrence}.
+\end{proof}
+
+The argument did not restrict the root to singleton or pair pools:
+the second case includes every pool with two or more labels.
+Nor did it assume a special structure for later queries.
+Both possible outcomes remain part of a legal tree, even though
+one child can suffice to certify a lower bound.
+
+\section{Turning a supposed saving into a contradiction}\label{sec:finalproof}
+
+We now combine the two parts of the proof.
+The recurrence will carry a supposed improvement over individual
+testing to a smaller complete-family problem near density \(1/4\).
+The information inequality will say that this smaller problem cannot
+have the amount of saving that the recurrence requires.
+
+\subsection{Measure the saving}
+
+For \(0<r<N\), define
+\[
+ \Delta(r,N)=N-1-M(r,N).
+\]
+This is a nonnegative integer by individual testing.
+It is the number of tests the optimal worst-case bound saves compared
+with \(N-1\).
+A counterexample to the desired equality has \(\Delta(r,N)\ge1\).
+
+Rearrange the recurrence carefully. The two expressions on its
+right are
+\[
+ 1+M(r,N-1)=N-1-\Delta(r,N-1)
+\]
+and
+\[
+ 2+M(r-1,N-1)=N-\Delta(r-1,N-1).
+\]
+Subtracting their minimum from \(N-1\) gives
+\begin{equation}\label{eq:savingrecurrence}
+ \Delta(r,N)\le
+ \max\{\Delta(r,N-1),\ \Delta(r-1,N-1)-1\}
+\end{equation}
+when \(r\ge2,N\ge r+2\).
+
+Suppose the current saving is at least \(s_0\).
+The maximum on the right must be at least \(s_0\).
+Therefore at least one of the following is true:
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Move to&Change of parameters&Required saving there\\
+\midrule
+\((r,N-1)\)&Remove one from the size only&At least \(s_0\)\\
+\((r-1,N-1)\)&Remove one from rank and size&At least \(s_0+1\)\\
+\bottomrule
+\end{tabular}
+\end{center}
+Here rank means the defective count. A move lowering it increases
+the forced saving by one.
+
+This sequence of parameter pairs is a mathematical consequence of
+lower bounds. It is not an actual test execution removing known
+items for free. We are not claiming to know which items to delete
+from an unknown input. The recurrence asserts that one of two
+separate, completely specified testing problems must have the
+indicated complexity.
+
+\subsection{Start from an alleged improvement}
+
+Assume, for a contradiction, that
+\[
+ n\ge2^{31},\qquad d/n\ge\cstar,\qquad \Delta(d,n)\ge1.
+\]
+Use \eqref{eq:savingrecurrence} to choose an available move of the
+indicated kind at each stage. After \(j\) moves lowering rank and
+size, and \(k_{\mathrm{size}}\) moves lowering size only, the
+current pair satisfies
+\begin{equation}\label{eq:tracking}
+ r=d-j,\qquad N=n-j-k_{\mathrm{size}},\qquad
+ \Delta(r,N)\ge1+j.
+\end{equation}
+This is proved by induction on moves: size-only moves preserve
+the saving lower bound; rank-lowering moves increase it by one.
+
+Stop at the first pair for which \(p=r/N\le1/4\).
+The starting density is above \(1/4\), since
+\(\cstar>1/3>1/4\); the first inequality follows from
+\(3\cdot369056>1000000\).
+
+\subsection{Why the sequence must stop at the desired density}
+
+The recurrence is unavailable only if \(r=1\) or \(N=r+1\).
+While the density is greater than \(1/4\), the case \(r=1\) means
+\(N=2\) or \(3\). The other unavailable case is the one-good-item
+problem \(N=r+1\).
+All these states have \(\Delta=0\) by Lemma~\ref{lem:endpoints},
+contradicting the positive lower bound in \eqref{eq:tracking}.
+Thus an unavailable state cannot end our sequence above \(1/4\).
+
+Each move decreases \(N\) by one, so the sequence cannot continue
+indefinitely. Every permitted successor is admissible:
+the recurrence guards \(r\ge2,N\ge r+2\) ensure positive new rank
+and new rank smaller than new size.
+It follows that the specified stopping pair exists.
+
+A size-only move raises the ratio \(r/N\). Therefore the first
+crossing below \(1/4\) must be a rank-lowering move. Its predecessor
+was \((r+1,N+1)\), with density strictly above \(1/4\).
+From
+\[
+ \frac{r+1}{N+1}>\frac14
+ \quad\Longrightarrow\quad 4r>N-3
+\]
+we obtain the useful rounding control
+\begin{equation}\label{eq:stoppingdensity}
+ \frac14-\frac{3}{4N}<p=\frac rN\le\frac14.
+\end{equation}
+There is no need to assume that \(N\) is divisible by four.
+Equality \(p=1/4\) is allowed at the stopping state.
+
+\subsection{The remaining instance is still large}
+
+Since \(M(r,N)\ge0\), we have \(\Delta(r,N)\le N-1\).
+Combining this with \eqref{eq:tracking} gives \(j\le N-2\).
+At the stopping state \(r\le N/4\), so
+\[
+ d=r+j\le\frac N4+N-2=\frac54N-2.
+\]
+Consequently
+\begin{equation}\label{eq:remaining-size}
+ N\ge\frac45(d+2)>\frac n4\ge2^{29}.
+\end{equation}
+For the strict middle inequality, use \(d\ge\cstar n\) and
+\(\cstar>5/16\), since
+\(16\cdot369056=5904896>5000000\).
+Thus \((4/5)\cstar>1/4\).
+
+Because \(N>2^{29}>750\), the rounding term \(3/(4N)\) is less
+than \(1/1000\). Equation~\eqref{eq:stoppingdensity} therefore
+places the stopped density in
+\[
+ \frac{249}{1000}<p\le\frac14.
+\]
+This is inside the interval of the whole-tree inequality.
+There are no small residual instances left to check.
+
+\subsection{How much saving is forced at the stopped state?}
+
+Let \(c=d/n\) be the original density. This is an arbitrary number
+at least \(\cstar\), not necessarily equal to it.
+Since \(k_{\mathrm{size}}\ge0\),
+\[
+ N\le n-j=n-d+r=n-d+pN.
+\]
+Rearranging, with \(c<1\), gives
+\[
+ \frac nN\ge\frac{1-p}{1-c}.
+\]
+Since \(j=d-r\),
+\begin{equation}\label{eq:rankmoves}
+ \frac jN=\frac dN-p
+ \ge\frac{c(1-p)}{1-c}-p
+ =\frac{c-p}{1-c}.
+\end{equation}
+For fixed \(p<1\), the derivative of the last expression with
+respect to \(c\) is \((1-p)/(1-c)^2>0\).
+For fixed \(c<1\), its derivative with respect to \(p\) is
+\(-1/(1-c)<0\).
+Using \(c\ge\cstar\) and \(p\le1/4\), we conclude
+\[
+ \frac jN\ge
+ \frac{\cstar-1/4}{1-\cstar}
+ =\frac{119056}{630944}
+ =\frac{7441}{39434}.
+\]
+Define
+\begin{equation}\label{eq:gstar}
+ g_\star=\frac{7441}{39434}.
+\end{equation}
+The tracked saving is therefore at least
+\begin{equation}\label{eq:lower-saving}
+ \Delta(r,N)\ge1+g_\star N.
+\end{equation}
+This is why all starting densities above \(\cstar\) are covered:
+increasing the original density only strengthens the lower bound
+on \(j/N\).
+
+\subsection{What the information bound allows}
+
+Apply Theorem~\ref{thm:whole} to an optimal tree for the stopped
+\((r,N)\) problem. Here use
+\[
+ H=\log\binom Nr,\qquad K=Nh(p)-H.
+\]
+The theorem and expected depth at most worst-case depth give
+\[
+ M(r,N)\ge H+\frac{N-H-67229K}{6615}.
+\]
+Subtract from \(N-1\), and show each coefficient:
+\begin{align*}
+ \Delta(r,N)
+ &\le N-1-H-\frac{N-H}{6615}+\frac{67229}{6615}K\\
+ &=\frac{6614}{6615}(N-H)+\frac{67229}{6615}K-1\\
+ &=\frac{6614}{6615}N(1-h(p))
+    +\frac{6614+67229}{6615}K-1.
+\end{align*}
+Put
+\[
+ \alpha=\frac{6614}{6615},\qquad
+ \beta=\frac{73843}{6615}<12.
+\]
+The last comparison follows from \(73843<12\cdot6615=79380\).
+Using \(K\le\log(N+1)\), we obtain
+\begin{equation}\label{eq:upper-saving}
+ \Delta(r,N)\le
+ \alpha N(1-h(p))+\beta\log(N+1)-1.
+\end{equation}
+
+We next replace the nearby density \(p\) by exactly \(1/4\), paying
+only a constant for the rounding. Define
+\[
+ \er=1-h(1/4).
+\]
+For \(249/1000\le u\le1/4\),
+\[
+ h'(u)=\log\frac{1-u}{u}<2,
+\]
+since \((1-u)/u\le751/249<4\).
+Integration from \(p\) to \(1/4\), together with
+\eqref{eq:stoppingdensity}, yields
+\[
+ h(1/4)-h(p)\le2(1/4-p)<\frac3{2N}.
+\]
+It also holds when \(p=1/4\), because then the left side is zero.
+Thus
+\begin{equation}\label{eq:roundedentropy}
+ N(1-h(p))<N\er+\frac32.
+\end{equation}
+
+\subsection{The numerical margin and the contradiction}
+
+The exact arithmetic needed now is isolated in the next lemma.
+Its proof, including finite logarithm series and their remainder
+bounds, is given in Appendix~\ref{app:arithmetic}.
+
+\begin{lemma}[Two numerical certificates]\label{lem:numerics}
+With the constants above,
+\begin{equation}\label{eq:positive-margin}
+ g_\star-\alpha\er>\frac1{1000000}.
+\end{equation}
+For every real \(N\ge2^{29}\),
+\begin{equation}\label{eq:logcutoff}
+ 12\log(N+1)<\frac N{1000000}.
+\end{equation}
+\end{lemma}
+
+Combine the lower saving \eqref{eq:lower-saving}, the upper saving
+\eqref{eq:upper-saving}, and the rounded entropy estimate:
+\[
+ 1+g_\star N
+ \le\Delta(r,N)
+ <\alpha N\er+\frac{3\alpha}{2}
+   +\beta\log(N+1)-1.
+\]
+Move the linear terms to the left and the two constant ones to
+the right:
+\[
+ (g_\star-\alpha\er)N
+ <\beta\log(N+1)+\frac{3\alpha}{2}-2.
+\]
+Since \(0<\alpha<1\), the final constant is negative. Hence a
+counterexample would require
+\begin{equation}\label{eq:contradiction}
+ (g_\star-\alpha\er)N<\beta\log(N+1).
+\end{equation}
+But Lemma~\ref{lem:numerics}, \(\beta<12\), and
+\(N>2^{29}\) give the incompatible chain
+\[
+ (g_\star-\alpha\er)N
+ >\frac N{1000000}
+ >12\log(N+1)
+ >\beta\log(N+1).
+\]
+This contradiction rules out \(\Delta(d,n)\ge1\).
+As \(\Delta(d,n)\) is a nonnegative integer, it must equal zero:
+\[
+ M(d,n)=n-1.
+\]
+Together with Proposition~\ref{prop:individual}, this proves
+Theorem~\ref{thm:main}.\quad\hfill\(\square\)
+
+\subsection{What each constant does}
+
+The proof separates several roles that are easy to confuse.
+\begin{itemize}
+\item The intermediate density \(1/4\) makes large pools and fresh
+pairs biased in useful directions under their respective comparison
+laws. The small interval around it absorbs the integer crossing error.
+\item The coefficient \(6615\) comes from the tree accounting. It
+produces \(\alpha=1-1/6615<1\) in the upper bound on savings.
+\item The starting threshold \(\cstar\) determines
+\(g_\star=(\cstar-1/4)/(1-\cstar)\), the saving forced per remaining
+item by the recurrence.
+\item The margin \(g_\star-\alpha\er>10^{-6}\) means that the forced
+linear saving exceeds what the information estimate permits, apart
+from its error term.
+\item The exact-count comparison contributes \(K\le\log(N+1)\),
+giving a logarithmic error. The cutoff \(n\ge2^{31}\) guarantees a
+residual \(N>2^{29}\), where the linear margin dominates that error.
+\end{itemize}
+The numerical certificate is used to establish these inequalities,
+not to guess a pattern from small instances.
+
+\section{What has, and has not, been proved}\label{sec:scope}
+
+The conclusion is an exact worst-case equality, for every admissible
+integer pair in the stated range. The proof allowed arbitrary legal
+pools, arbitrary overlap, and full adaptivity. The average used in
+the probability argument was always over valid exact-count inputs.
+The independent and artificial laws were comparison measures, with
+every change of law accounted for by an identity or inequality.
+
+The expectation estimate alone was not the final result. It supplied
+an upper bound on possible savings at a smaller instance. The
+structural recurrence forced an incompatible lower bound on those
+savings from any proposed original counterexample. This is the step
+that upgrades the information estimate to the exact answer \(n-1\).
+
+There is no assertion that the same threshold theorem holds for all
+\(n<2^{31}\). The elementary endpoint results proved earlier do hold
+at their stated smaller sizes, but they are not a substitute for a
+general small-population theorem.
+The constants in the argument are sufficient constants; their
+optimality is not claimed.
+
+The conjectural boundary is density \(1/3\), often called the
+Hu--Hwang--Wang conjecture \cite{HHW}. Since
+\(3\cdot369056>1000000\), the theorem explained here stops strictly
+above that boundary. No resolution at \(1/3\) follows from this proof.
+
+\appendix
+\section{Exact certificates for the numerical step}\label{app:arithmetic}
+
+This appendix proves Lemma~\ref{lem:numerics}. Its purpose is narrow:
+to certify a positive linear margin and the population size at which
+that margin dominates the logarithmic correction. Decimal
+approximations are not used as evidence.
+
+\subsection{A logarithm series with a proved remainder}
+
+For \(0<t<1\), the derivative of
+\(\ln((1+t)/(1-t))\) is \(2/(1-t^2)\).
+The finite geometric identity gives
+\[
+ \frac1{1-u^2}=\sum_{j=0}^{s}u^{2j}
+                +\frac{u^{2s+2}}{1-u^2}.
+\]
+Integrate from zero to \(t\), multiply by two, and use that the
+logarithm is zero at zero:
+\begin{equation}\label{eq:logseries}
+ \ln\frac{1+t}{1-t}
+ =2\sum_{j=0}^{s}\frac{t^{2j+1}}{2j+1}+R_s(t).
+\end{equation}
+The remainder is the integral of \(2u^{2s+2}/(1-u^2)\).
+It is positive, and \(1-u^2>1-t^2\) for \(0\le u<t\).
+Therefore
+\begin{equation}\label{eq:logremainder}
+ 0<R_s(t)<\frac{2t^{2s+3}}{(2s+3)(1-t^2)}.
+\end{equation}
+At \(t=1/3\) the logarithm in \eqref{eq:logseries} is \(\ln2\);
+at \(t=1/5\) it is \(\ln(3/2)\).
+
+\subsection{A finite rational table}
+
+Set \(T_0=10^{10}\).
+Every row in the following table has positive integers \(u,f\)
+satisfying
+\[
+ uf\le2T_0<u(f+1).
+\]
+Equivalently, \(f/T_0\le2/u<(f+1)/T_0\).
+Thus the table gives lower and upper rational bounds for each
+series term; it is a certificate consisting only of integer
+multiplications and comparisons.
+
+\begin{center}
+\begin{tabular}{rrr@{\qquad}rrr}
+\toprule
+\multicolumn{3}{c}{For \(\ln2\), \(t=1/3\)}&
+\multicolumn{3}{c}{For \(\ln(3/2)\), \(t=1/5\)}\\
+\(j\)&\(u=(2j+1)3^{2j+1}\)&\(f\)&
+\(j\)&\(u=(2j+1)5^{2j+1}\)&\(f\)\\
+\midrule
+0&3&6666666666&0&5&4000000000\\
+1&81&246913580&1&375&53333333\\
+2&1215&16460905&2&15625&1280000\\
+3&15309&1306421&3&546875&36571\\
+4&177147&112900&4&17578125&1137\\
+5&1948617&10263&5&537109375&37\\
+6&20726199&964&&&\\
+7&215233605&92&&&\\
+8&2195382771&9&&&\\
+\midrule
+\multicolumn{2}{r}{Sum of \(f\):}&6931471800&
+\multicolumn{2}{r}{Sum of \(f\):}&4054651078\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+For example, in the row \(u=81\) the product is
+\(81\cdot246913580=19999999980\), while adding another \(81\)
+exceeds \(20000000000=2T_0\).
+The displayed inequalities for the other rows have exactly the
+same form.
+
+The remainder bounds \eqref{eq:logremainder} give
+\[
+ R_8(1/3)<\frac1{76\cdot3^{17}}=\frac1{9814652388}
+ <\frac2{T_0},
+\]
+and
+\[
+ R_5(1/5)<\frac1{156\cdot5^{11}}=\frac1{7617187500}
+ <\frac2{T_0}.
+\]
+In the first sum the error from replacing the nine terms by their
+table bounds is less than \(9/T_0\). In the second it is less than
+\(6/T_0\). Hence
+\[
+ \frac{6931471800}{T_0}<\ln2<
+ \frac{6931471800+9+2}{T_0}
+ <\frac{6931471900}{T_0},
+\]
+and
+\[
+ \frac{4054651000}{T_0}
+ <\frac{4054651078}{T_0}<\ln(3/2)
+ <\frac{4054651078+6+2}{T_0}
+ <\frac{4054651100}{T_0}.
+\]
+In particular,
+\begin{equation}\label{eq:lncert}
+ \frac{69314718}{10^8}<\ln2<\frac{69314719}{10^8},
+ \qquad
+ \frac{40546510}{10^8}<\ln(3/2)<\frac{40546511}{10^8}.
+\end{equation}
+These also certify the simpler bound \(\ln2>1/2\).
+
+\subsection{Bound the entropy gap at one quarter}
+
+Let \(\theta=\log_2 3\). Since
+\(\theta=1+\ln(3/2)/\ln2\), the upper bound on the numerator and
+the lower bound on the denominator in \eqref{eq:lncert} yield
+\[
+ \theta<1+\frac{40546511}{69314718}
+ <\frac{1584963}{1000000}.
+\]
+The last comparison has the exact integer certificate
+\[
+ 584963\cdot69314718-1000000\cdot40546511
+ =34385434>0.
+\]
+From \(h(1/4)=2-3\theta/4\), we obtain
+\begin{equation}\label{eq:ebar}
+ \er=1-h(1/4)=\frac34\theta-1
+ <\bar e:=\frac{754889}{4000000}.
+\end{equation}
+
+\subsection{The positive margin}
+
+Recall \(g_\star=7441/39434\) and \(\alpha=6614/6615\).
+Exact subtraction gives
+\[
+ g_\star-\bar e
+ =-\frac{4292826}{157736000000}>
+ -\frac{55}{2000000}.
+\]
+After multiplication by the positive denominator, the final
+inequality is \(4292826<4337740\).
+Also
+\[
+ \frac{\bar e}{6615}
+ =\frac{754889}{26460000000}>
+ \frac{57}{2000000},
+\]
+whose certificate is \(754889>754110\).
+Now combine these as parts of one expression:
+\begin{align*}
+ g_\star-\alpha\er
+ &>g_\star-\alpha\bar e\\
+ &=(g_\star-\bar e)+\frac{\bar e}{6615}\\
+ &>-\frac{55}{2000000}+\frac{57}{2000000}
+ =\frac1{1000000}.
+\end{align*}
+The first inequality uses \(\alpha>0\) and \(\er<\bar e\).
+This proves \eqref{eq:positive-margin}.
+
+\subsection{The cutoff}
+
+For real \(N\ge2^{29}\), define
+\[
+ F(N)=\frac N{1000000}-12\log(N+1).
+\]
+At \(N=2^{29}=536870912\), the first term exceeds \(536\).
+Since \(2^{29}+1<2^{30}\), the second term is less than
+\(12\cdot30=360\). Thus \(F(2^{29})>0\).
+Furthermore, using \(\ln2>1/2\),
+\[
+ F'(N)=\frac1{1000000}-\frac{12}{(N+1)\ln2}
+ >\frac1{1000000}-\frac{24}{N+1}>0.
+\]
+The last inequality holds because
+\(N+1\ge2^{29}+1>24000000\).
+So \(F(N)>0\) for the entire range, proving
+\eqref{eq:logcutoff}.
+This completes the proof of Lemma~\ref{lem:numerics}.
+
+\section{Notation guide}\label{app:notation}
+
+The following guide collects the main notation; definitions and
+justifications are in the body of the exposition.
+\begin{longtable}{p{0.23\linewidth}p{0.70\linewidth}}
+\toprule
+Symbol&Meaning\\
+\midrule
+\endfirsthead
+\toprule
+Symbol&Meaning\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\(n,d\)&Original population size and exact defective count.\\
+\(D\)&A particular defective subset.\\
+\(X,\ X_i\)&Random defective subset and its indicator at label \(i\).\\
+\(S_v,\widehat S_v\)&Original and normalized pools at node \(v\).\\
+\(Z_v\)&Union of preceding pools assigned negative answers on the
+node's fixed prefix.\\
+\(\tau,\ y,\ \ell\)&Prefix transcript, terminal transcript, and terminal leaf.\\
+\(Y,T\)&Random terminal transcript and number of tests in an execution.\\
+\(P_X,P_Y,P_{X,Y}\)&Input, transcript, and joint laws for uniform
+exact-count inputs with truthful answers.\\
+\(Q_X,Q_Y,Q_{X,Y}\)&Corresponding laws for independent inputs with truthful answers.\\
+\(R_X,R_Y,R_{X,Y}\)&Corresponding laws for independent inputs with artificial
+fair answers at large normalized pools. Here \(R_X=Q_X\).\\
+\(P(v)\)&Probability under \(P\) of reaching node \(v\).\\
+\(\pi_v,\rho_v^Q,\rho_v^R\)&Conditional negative probabilities at \(v\)
+under \(P,Q,R\), respectively.\\
+\(\Ent,\ h,\ \KL,\ \kl\)&Finite-law entropy, binary entropy, relative entropy,
+and binary relative entropy. All use base-two logarithms.\\
+\(p,q\)&The current exact defective fraction and its complement \(q=1-p\).\\
+\(H\)&\(\log\binom nd\), entropy of the uniform valid-input law.\\
+\(K\)&\(nh(p)-H=\KL(P_X\Vert Q_X)\), the exact-count comparison cost.\\
+\(L,\Gamma\)&Actual expected test count \(\E_P T\) and its excess \(L-H\).\\
+\(\Glg,\Gfr\)&Parts of \(\Gamma\) contributed by large queries and fresh pairs.\\
+\(a(D),b(D),t(D)\)&Large-query count, fresh-pair count, and test count
+on the truthful path of \(D\).\\
+\(A,B\)&The \(P\)-expected large-query and fresh-pair counts.\\
+\(V(D),w_1(D),w_0(D)\)&Union of small pools on the truthful path, and
+counts of defective and good labels outside that union.\\
+\(W\)&\(\E_P(w_1+w_0)\), expected number of untouched labels.\\
+\(J\)&\(\E_P[w_1\log(1/p)+w_0\log(1/q)]\), a lower bound on averaged
+conditional input divergence.\\
+\(\mathcal D_R\)&\(\KL(P_Y\Vert R_Y)\), reference transcript divergence.\\
+\(\Comp(\mathcal F)\)&Minimum worst-case depth for a specified nonempty
+candidate family \(\mathcal F\).\\
+\(\xi,\eta\)&The two distinguished labels in the structural identity.\\
+\(r,N\)&Rank and population size at a smaller recurrence instance.\\
+\(\Delta(r,N)\)&\(N-1-M(r,N)\), saving compared with individual testing.\\
+\(j,k_{\mathrm{size}}\)&Counts of rank-and-size moves and size-only moves
+in the recurrence sequence.\\
+\(\cstar,g_\star\)&\(369056/1000000\) and
+\((\cstar-1/4)/(1-\cstar)=7441/39434\).\\
+\(\alpha,\beta\)&\(6614/6615\) and \(73843/6615\), coefficients in the
+upper bound on savings.\\
+\(\er,\bar e\)&The gap \(1-h(1/4)\) and its rational upper bound
+\(754889/4000000\).\\
+\end{longtable}
+
+\begin{thebibliography}{9}
+\bibitem{Source}
+\emph{Coupled Reference-Process Bounds for Dense Adaptive Group Testing},
+unpublished mathematical manuscript, October 25, 2026.
+Mathematical source for this exposition; all results needed here
+have been proved within the present document.
+
+\bibitem{HHW}
+M.~C. Hu, F.~K. Hwang, and J.~K. Wang,
+A boundary problem for group testing,
+\emph{SIAM Journal on Algebraic and Discrete Methods}
+\textbf{2}(2) (1981), 81--87.
+\href{https://doi.org/10.1137/0602011}{doi:10.1137/0602011}.
+\end{thebibliography}
+\end{document}
